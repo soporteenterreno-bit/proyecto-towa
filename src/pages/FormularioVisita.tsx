@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, updateDoc, collection, getDocs, query, where, documentId } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, UploadCloud, CheckCircle, AlertCircle, FileText, Download, User as UserIcon, Calendar, MapPin, Building, Briefcase, Camera, X, XCircle, Navigation, Clock, LogIn, LogOut } from 'lucide-react';
 import { format } from 'date-fns';
@@ -14,17 +13,19 @@ const programadaActivities = [
     id: 'prog_1',
     title: 'Inspección y Levantamiento Físico',
     subActivities: [
-      { text: 'Realizar una inspección presencial para identificar ubicación de cada activo.', points: 10 },
-      { text: 'Registrar modelos, marcas y números de serie de cada dispositivo.', points: 15 }
-    ]
+      { id: 'prog_1_0', text: 'Realizar una inspección presencial para identificar ubicación de cada activo.', points: 10, isCompleted: null, reason: '' },
+      { id: 'prog_1_1', text: 'Registrar modelos, marcas y números de serie de cada dispositivo.', points: 15, isCompleted: null, reason: '' }
+    ],
+    images: []
   },
   {
     id: 'prog_2',
     title: 'Evaluación de Infraestructura',
     subActivities: [
-      { text: 'Auditar conectividad de sistemas.', points: 15 },
-      { text: 'Inspeccionar el gabinete principal (rack) y cableado.', points: 10 }
-    ]
+      { id: 'prog_2_0', text: 'Auditar conectividad de sistemas.', points: 15, isCompleted: null, reason: '' },
+      { id: 'prog_2_1', text: 'Inspeccionar el gabinete principal (rack) y cableado.', points: 10, isCompleted: null, reason: '' }
+    ],
+    images: []
   }
 ];
 
@@ -33,9 +34,10 @@ const fallaActivities = [
     id: 'fall_1',
     title: 'Diagnóstico de la Falla General',
     subActivities: [
-      { text: 'Aislar el fallo original que detonó el incidente.', points: 25 },
-      { text: 'Comprobar conexiones de red y energía.', points: 25 }
-    ]
+      { id: 'fall_1_0', text: 'Aislar el fallo original que detonó el incidente.', points: 25, isCompleted: null, reason: '' },
+      { id: 'fall_1_1', text: 'Comprobar conexiones de red y energía.', points: 25, isCompleted: null, reason: '' }
+    ],
+    images: []
   }
 ];
 
@@ -88,30 +90,30 @@ export default function FormularioVisita() {
     const fetchFullData = async () => {
       if (!visitaId) return;
       try {
-          const vSnap = await getDoc(doc(db, 'visitas', visitaId));
-          if (!vSnap.exists()) {
+          const { data: vSnap, error: vError } = await supabase.from('visitas').select('*').eq('id', visitaId).single();
+          if (vError || !vSnap) {
              alert('Visita no encontrada');
              navigate('/visitas/mis-visitas');
              return;
           }
-          const vData = { id: vSnap.id, ...vSnap.data() } as any;
+          const vData = { id: vSnap.id, ...vSnap } as any;
 
           // Fetch Tienda
           if (vData.id_tienda) {
-              const tSnap = await getDoc(doc(db, 'tiendas', vData.id_tienda));
-              if (tSnap.exists()) vData.tienda = tSnap.data();
+              const { data: tSnap } = await supabase.from('tiendas').select('*').eq('id', vData.id_tienda).single();
+              if (tSnap) vData.tienda = tSnap;
           }
 
           // Fetch Tecnico
           if (vData.tecnico_uid) {
-              const techSnap = await getDoc(doc(db, 'users', vData.tecnico_uid));
-              if (techSnap.exists()) {
-                  vData.tecnicoInfo = techSnap.data();
+              const { data: techSnap } = await supabase.from('users').select('*').eq('id', vData.tecnico_uid).single();
+              if (techSnap) {
+                  vData.tecnicoInfo = techSnap;
                   if (vData.tecnicoInfo.jefe_inmediato) {
                       try {
-                          const jefeSnap = await getDoc(doc(db, 'users', vData.tecnicoInfo.jefe_inmediato));
-                          if (jefeSnap.exists()) {
-                              vData.tecnicoInfo.jefeInfo = jefeSnap.data();
+                          const { data: jefeSnap } = await supabase.from('users').select('*').eq('id', vData.tecnicoInfo.jefe_inmediato).single();
+                          if (jefeSnap) {
+                              vData.tecnicoInfo.jefeInfo = jefeSnap;
                           }
                       } catch(e) { console.warn(e) }
                   }
@@ -128,18 +130,12 @@ export default function FormularioVisita() {
              let actsBase: any[] = [];
 
              if (vData.componentes_afectados && vData.componentes_afectados.length > 0) {
-                 // Fetch custom questions for these components
-                 // Firebase doesn't allow 'in' with > 10 items, but we'll assume less than 10 components selected
                  try {
-                     const compChunks = [];
-                     for (let i = 0; i < vData.componentes_afectados.length; i += 10) {
-                         const chunk = vData.componentes_afectados.slice(i, i + 10);
-                         const qComp = query(collection(db, 'preguntas_componentes'), where(documentId(), 'in', chunk));
-                         const compSnap = await getDocs(qComp);
-                         compSnap.forEach(d => {
-                            const data = d.data();
+                     const { data: compSnap } = await supabase.from('preguntas_componentes').select('*').in('id', vData.componentes_afectados);
+                     if (compSnap) {
+                         compSnap.forEach(data => {
                             actsBase.push({
-                                id: d.id,
+                                id: data.id,
                                 title: data.name,
                                 subActivities: data.questions || []
                             });
@@ -160,10 +156,10 @@ export default function FormularioVisita() {
                      id: `${a.id}-${sub.id || idx}`,
                      text: sub.text,
                      points: sub.points || 0,
-                     isCompleted: null,
-                     reason: ''
+                     isCompleted: sub.isCompleted !== undefined ? sub.isCompleted : null,
+                     reason: sub.reason || ''
                  })),
-                 images: []
+                 images: a.images || []
              })));
           }
 
@@ -237,11 +233,11 @@ export default function FormularioVisita() {
      if (!visita || visita.status === 'Completada') return;
      const timeoutId = setTimeout(() => {
          if (visita.status === 'En Curso' || visita.status === 'Pendiente') {
-            updateDoc(doc(db, 'visitas', visita.id), {
+            supabase.from('visitas').update({
                 ponderacion_final: currPonderacion,
                 actividades_ejecutadas: items,
                 notas_adicionales: notas
-            }).catch(e => console.warn("Background auto-save failed", e));
+            }).eq('id', visita.id).catch(e => console.warn("Background auto-save failed", e));
          }
      }, 2500);
      return () => clearTimeout(timeoutId);
@@ -371,14 +367,14 @@ export default function FormularioVisita() {
       setSaving(true);
       try {
           const ahora = new Date().toISOString();
-          await updateDoc(doc(db, 'visitas', visitaId!), {
+          await supabase.from('visitas').update({
               status: 'Completada',
               ponderacion_final: currPonderacion,
               fecha_ejecucion: ahora,
               fecha_fin: ahora,
               notas_adicionales: notas,
               actividades_ejecutadas: items
-          });
+          }).eq('id', visitaId);
 
           setVisita((prev: any) => ({
              ...prev,
@@ -475,7 +471,7 @@ export default function FormularioVisita() {
             pdf.text(`Hora de Entrada: ${format(new Date(visita.fecha_inicio), "dd/MM/yyyy - HH:mm")}`, 15, currentY);
           }
           pdf.setFont("helvetica", "bold");
-          pdf.text(`Puntuación Global: ${visita.ponderacion_final !== undefined ? visita.ponderacion_final + '%' : '---'}`, 110, currentY);
+          pdf.text(`Puntuación Global: ${visita.ponderacion_final !== undefined && visita.ponderacion_final !== null ? visita.ponderacion_final + '%' : '---'}`, 110, currentY);
           pdf.setFont("helvetica", "normal");
 
           if (visita.fecha_fin || visita.fecha_ejecucion) {
@@ -801,244 +797,219 @@ export default function FormularioVisita() {
                      </div>
                  </div>
              </div>
+             
+             {visita.notas_coordinador && (
+                 <div className="mt-6 bg-orange-50/50 p-4 rounded-xl border border-orange-100">
+                     <h4 className="text-[10px] sm:text-xs font-bold text-orange-800 uppercase tracking-widest mb-2">Instrucciones del Coordinador</h4>
+                     <p className="text-sm text-orange-900/80 italic">"{visita.notas_coordinador}"</p>
+                 </div>
+             )}
           </div>
 
-          {/* Scores Ponderation Header */}
-          <div className="bg-brand-dark text-white px-6 py-4 flex justify-between items-center">
-              <div>
-                 <h2 className="text-sm font-bold uppercase tracking-wider">Puntuación Global</h2>
-                 <p className="text-xs text-white/70">Calculado en base a {scoresInfo.totalPts} puntos totales</p>
-              </div>
-              <div className="text-3xl font-black">{isCompleted ? visita.ponderacion_final : currPonderacion}%</div>
-          </div>
-
-          <div className="p-4 sm:p-8">
-              
-              <div className="mb-8">
-                 <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-2 border-b-2 border-brand-dark inline-block pb-1">Evaluación de Componentes</h2>
-                 <p className="text-xs sm:text-sm text-gray-500 mb-6">Completa las preguntas para cada componente evaluado.</p>
+          <div className="p-5 sm:p-8">
+             
+             {/* Progress Summary Section */}
+             <div className="mb-8 grid grid-cols-1 md:grid-cols-4 gap-4">
+                 <div className="col-span-1 md:col-span-1 bg-gray-50 rounded-xl p-4 border border-gray-100 text-center flex flex-col justify-center">
+                     <div className="text-3xl font-black text-brand-dark">{currPonderacion}%</div>
+                     <div className="text-xs text-gray-500 font-semibold uppercase mt-1">Avance Global</div>
+                 </div>
                  
-                 <div className="space-y-6 sm:space-y-8">
-                    {items.map((item, idx) => {
-                        const compScore = scoresInfo.componentScores.find(c => c.id === item.id);
-                        return (
-                        <div key={item.id} id={`activity-${item.id}`} className="relative pl-6 sm:pl-0 scroll-mt-24">
-                            <div className="absolute left-0 top-0 sm:relative sm:left-auto sm:top-auto sm:mb-3 flex flex-col sm:flex-row items-start sm:items-center justify-between">
-                                <div className="flex items-center">
-                                    <div className="w-5 h-5 sm:w-8 sm:h-8 rounded-full bg-brand-dark text-white flex items-center justify-center text-[10px] sm:text-sm font-bold">
-                                        {idx + 1}
-                                    </div>
-                                    <h3 className="hidden sm:block ml-3 text-base sm:text-lg font-bold text-gray-800 mt-0.5">{item.title}</h3>
-                                </div>
-                                <div className="hidden sm:block text-sm font-bold text-gray-500">
-                                    {compScore?.earned} / {compScore?.total} pts ({compScore?.percentage}%)
-                                </div>
-                            </div>
-                            
-                            <div className="sm:ml-11 bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-                                <div className="p-4 sm:p-6 pb-4">
-                                     <div className="sm:hidden flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
-                                         <h3 className="text-sm font-bold text-brand-dark">{item.title}</h3>
-                                         <span className="text-xs font-bold text-gray-500">{compScore?.earned}/{compScore?.total} pts</span>
+                 <div className="col-span-1 md:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                     <div className="bg-white border border-gray-100 rounded-xl p-3 flex items-center justify-between shadow-sm">
+                         <div>
+                             <p className="text-2xl font-bold text-emerald-600">{allSubsCompleted.length}</p>
+                             <p className="text-[10px] font-bold text-gray-400 uppercase">Tareas OK</p>
+                         </div>
+                         <CheckCircle className="w-8 h-8 text-emerald-100" />
+                     </div>
+                     <div className="bg-white border border-gray-100 rounded-xl p-3 flex items-center justify-between shadow-sm">
+                         <div>
+                             <p className="text-2xl font-bold text-red-500">{allSubsNotCompleted.length}</p>
+                             <p className="text-[10px] font-bold text-gray-400 uppercase">No Realizadas</p>
+                         </div>
+                         <XCircle className="w-8 h-8 text-red-100" />
+                     </div>
+                     <div className="bg-white border border-gray-100 rounded-xl p-3 flex items-center justify-between shadow-sm">
+                         <div>
+                             <p className="text-2xl font-bold text-brand-dark">{scoresInfo.earnedPts}</p>
+                             <p className="text-[10px] font-bold text-gray-400 uppercase">Pts. Acumulados</p>
+                         </div>
+                         <div className="text-xs font-bold text-gray-300">/ {scoresInfo.totalPts}</div>
+                     </div>
+                 </div>
+             </div>
+
+             {/* Dynamic Form List */}
+             <div className="space-y-6 sm:space-y-8">
+                 {items.map((item, index) => {
+                     const itemTotalPts = item.subActivities.reduce((acc, sub) => acc + (sub.points || 0), 0);
+                     const itemEarnedPts = item.subActivities.filter(s => s.isCompleted).reduce((acc, sub) => acc + (sub.points || 0), 0);
+                     const itemProgress = itemTotalPts > 0 ? Math.round((itemEarnedPts / itemTotalPts) * 100) : 0;
+                     
+                     return (
+                         <div id={`activity-${item.id}`} key={item.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                             <div className="bg-gray-50 border-b border-gray-200 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                 <div>
+                                     <div className="text-[10px] font-bold text-brand-dark uppercase tracking-wider mb-1">Sección {index + 1}</div>
+                                     <h3 className="text-base sm:text-lg font-bold text-gray-800">{item.title}</h3>
+                                 </div>
+                                 <div className="flex items-center gap-4 shrink-0 bg-white px-3 py-1.5 rounded-lg border border-gray-100 shadow-sm">
+                                     <div className="text-right">
+                                         <div className="text-sm font-black text-brand-dark">{itemProgress}%</div>
+                                         <div className="text-[9px] text-gray-400 font-bold uppercase">{itemEarnedPts}/{itemTotalPts} pts</div>
                                      </div>
-                                     
-                                     <div className="space-y-4 mb-6">
-                                        {item.subActivities.map((sub) => (
-                                            <div key={sub.id} className="bg-white p-3 sm:p-4 rounded-xl border border-gray-200/60 shadow-sm flex flex-col lg:flex-row gap-4">
-                                                <div className="flex-1">
-                                                    <p className="text-xs sm:text-sm text-gray-700 font-medium mb-1 leading-relaxed">{sub.text}</p>
-                                                    <p className="text-[10px] font-bold text-brand-dark uppercase">Valor: {sub.points} pts</p>
-                                                </div>
-                                                
-                                                <div className="w-full lg:w-72">
-                                                    {!isCompleted && isOwner ? (
-                                                        <div className="space-y-3">
-                                                            <div className="flex gap-2">
-                                                                <button 
-                                                                  type="button"
-                                                                  onClick={() => updateSubStatus(item.id, sub.id, true)} 
-                                                                  className={`flex-1 py-1.5 sm:py-2 rounded-lg text-[10px] sm:text-sm font-semibold border transition-colors ${sub.isCompleted === true ? 'bg-green-50 border-green-500 text-green-700' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'}`}
-                                                                >
-                                                                    Aprobado ✅
-                                                                </button>
-                                                                <button 
-                                                                  type="button"
-                                                                  onClick={() => updateSubStatus(item.id, sub.id, false)} 
-                                                                  className={`flex-1 py-1.5 sm:py-2 rounded-lg text-[10px] sm:text-sm font-semibold border transition-colors ${sub.isCompleted === false ? 'bg-red-50 border-red-500 text-red-700' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'}`}
-                                                                >
-                                                                    Rechazado ❌
-                                                                </button>
-                                                            </div>
-                                                            {sub.isCompleted === false && (
-                                                                <div className="animate-in fade-in slide-in-from-top-1">
-                                                                  <textarea 
-                                                                    value={sub.reason} 
-                                                                    onChange={(e) => updateSubReason(item.id, sub.id, e.target.value)} 
-                                                                    className="w-full text-xs p-2 bg-red-50/50 border border-red-200 rounded-lg outline-none focus:ring-1 focus:ring-red-400 placeholder-red-300 transition-all font-medium text-red-900" 
-                                                                    placeholder="Especifica la razón obligatoria detallada..." 
-                                                                    rows={2}
-                                                                  />
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    ) : (
-                                                        <div className="mt-2 pt-2 border-t border-gray-100 lg:border-t-0 lg:mt-0 lg:pt-0">
-                                                            <span className={`inline-flex items-center px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border ${sub.isCompleted ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
-                                                                {sub.isCompleted ? <CheckCircle className="w-3 h-3 mr-1"/> : <XCircle className="w-3 h-3 mr-1"/>}
-                                                                {sub.isCompleted ? 'Aprobado' : 'Rechazado'}
-                                                            </span>
-                                                            {sub.isCompleted === false && (
-                                                                <div className="mt-2 bg-red-50 p-2 rounded-lg border border-red-100">
-                                                                    <p className="text-[10px] font-bold text-red-800 uppercase tracking-widest mb-1">Razón proporcionada:</p>
-                                                                    <p className="text-xs text-red-900 font-medium italic">"{sub.reason}"</p>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
+                                     <div className="w-12 h-12 relative">
+                                        {/* Circular Progress */}
+                                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                                            <path className="text-gray-100" strokeWidth="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                            <path className="text-brand-dark transition-all duration-500 ease-out" strokeWidth="4" strokeDasharray={`${itemProgress}, 100`} stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                        </svg>
+                                     </div>
+                                 </div>
+                             </div>
+
+                             <div className="p-4 sm:p-6 space-y-6">
+                                 {item.subActivities.map((sub, sIdx) => (
+                                     <div key={sub.id} className={`p-4 rounded-xl border transition-colors ${sub.isCompleted === true ? 'bg-emerald-50/30 border-emerald-100' : sub.isCompleted === false ? 'bg-red-50/30 border-red-100' : 'bg-gray-50/50 border-gray-100'}`}>
+                                         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                                             <div className="flex-1">
+                                                 <div className="flex items-start">
+                                                     <div className="bg-gray-100 text-gray-500 text-xs font-bold px-2 py-0.5 rounded mr-3 mt-0.5">{index+1}.{sIdx+1}</div>
+                                                     <p className="text-sm font-medium text-gray-800">{sub.text}</p>
+                                                 </div>
+                                                 <div className="mt-2 ml-10 flex items-center text-[10px] font-bold text-brand-dark uppercase">
+                                                    <FileText className="w-3 h-3 mr-1" /> Vale {sub.points} puntos
+                                                 </div>
+                                             </div>
+                                             
+                                             <div className="flex flex-col gap-3 shrink-0 md:ml-6 md:w-64">
+                                                 {!isCompleted && isOwner ? (
+                                                     <div className="flex bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
+                                                         <button onClick={() => updateSubStatus(item.id, sub.id, true)} className={`flex-1 flex justify-center py-2 text-xs font-bold rounded-md transition-colors ${sub.isCompleted === true ? 'bg-emerald-500 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
+                                                             Completada
+                                                         </button>
+                                                         <button onClick={() => updateSubStatus(item.id, sub.id, false)} className={`flex-1 flex justify-center py-2 text-xs font-bold rounded-md transition-colors ${sub.isCompleted === false ? 'bg-red-500 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
+                                                             No Realizada
+                                                         </button>
+                                                     </div>
+                                                 ) : (
+                                                     <div className={`text-center py-2 text-sm font-bold rounded-lg border ${sub.isCompleted === true ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : sub.isCompleted === false ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                                                         {sub.isCompleted === true ? '✓ Tarea Completada' : sub.isCompleted === false ? '✗ No Realizada' : 'Pendiente'}
+                                                     </div>
+                                                 )}
+
+                                                 {sub.isCompleted === false && (
+                                                     <div className="w-full">
+                                                         <textarea
+                                                             disabled={isCompleted || !isOwner}
+                                                             placeholder="Motivo obligatorio..."
+                                                             value={sub.reason || ''}
+                                                             onChange={(e) => updateSubReason(item.id, sub.id, e.target.value)}
+                                                             className="w-full text-sm border-gray-300 rounded-lg shadow-sm focus:border-red-500 focus:ring-red-500 p-2.5 bg-white disabled:bg-gray-50"
+                                                             rows={2}
+                                                         />
+                                                     </div>
+                                                 )}
+                                             </div>
+                                         </div>
+                                     </div>
+                                 ))}
+
+                                 {/* Image Evidence Block */}
+                                 <div className="mt-8 pt-6 border-t border-gray-100">
+                                     <div className="flex items-center justify-between mb-4">
+                                         <div>
+                                            <h4 className="text-sm font-bold text-gray-800 flex items-center">
+                                                <Camera className="w-4 h-4 mr-2 text-brand-dark" />
+                                                Evidencia Fotográfica de la Actividad
+                                            </h4>
+                                            <p className="text-xs text-gray-500 mt-1">Obligatorio incluir al menos una imagen general del componente.</p>
+                                         </div>
+                                         
+                                         {!isCompleted && isOwner && (
+                                             <div>
+                                                 <input type="file" accept="image/*" multiple id={`file-${item.id}`} className="hidden" onChange={(e) => handleImageUpload(e, item.id)} />
+                                                 <label htmlFor={`file-${item.id}`} className="cursor-pointer inline-flex items-center px-4 py-2 bg-brand-gray text-brand-dark text-sm font-bold rounded-xl hover:bg-brand-hover hover:text-white transition-colors border border-brand-dark/10">
+                                                     <UploadCloud className="w-4 h-4 mr-2" /> Subir Fotos
+                                                 </label>
+                                             </div>
+                                         )}
                                      </div>
 
-                                     {/* Images Area */}
-                                     {(!isCompleted && isOwner) ? (
-                                        <div className="bg-white p-4 rounded-xl border border-gray-200 mt-2">
-                                            <label className="block text-[10px] sm:text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center">
-                                                <Camera className="w-3 h-3 mr-1.5" /> Evidencias del {item.title} *
-                                            </label>
-                                            
-                                            <div className="flex flex-wrap gap-2">
-                                                {item.images.map((img, i) => (
-                                                    <div key={i} className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border border-gray-200 group">
-                                                        <img src={img} className="w-full h-full object-cover" />
-                                                        <button 
-                                                            type="button"
-                                                            onClick={() => removeImage(item.id, i)} 
-                                                            className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                        >
-                                                            <X className="w-5 h-5" />
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                                <label className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-500 hover:border-brand-hover hover:text-brand-hover cursor-pointer transition-colors bg-gray-50 hover:bg-white text-center">
-                                                    <UploadCloud className="w-4 h-4 sm:w-5 sm:h-5 mb-1" />
-                                                    <span className="text-[8px] sm:text-[10px] font-semibold uppercase leading-tight">Añadir<br/>Evidencia</span>
-                                                    <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleImageUpload(e, item.id)} />
-                                                </label>
-                                            </div>
-                                        </div>
-                                     ) : item.images.length > 0 && (
-                                         <div className="mt-4 pt-4 border-t border-gray-200">
-                                            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Evidencias Adjuntas:</p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {item.images.map((img, i) => (
-                                                    <img key={i} src={img} className="w-16 h-16 sm:w-24 sm:h-24 object-cover rounded-lg border border-gray-200 shadow-sm" />
-                                                ))}
-                                            </div>
+                                     {item.images.length > 0 ? (
+                                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                             {item.images.map((img, idx) => (
+                                                 <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-sm bg-gray-50">
+                                                     <img src={img} alt={`Evidencia ${idx}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                                                     {!isCompleted && isOwner && (
+                                                         <button onClick={() => removeImage(item.id, idx)} className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-600">
+                                                             <X className="w-3 h-3" />
+                                                         </button>
+                                                     )}
+                                                 </div>
+                                             ))}
+                                         </div>
+                                     ) : (
+                                         <div className="bg-gray-50 border border-dashed border-gray-300 rounded-xl p-8 text-center">
+                                             <Camera className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                                             <p className="text-sm text-gray-500">Aún no hay fotos adjuntas para esta actividad.</p>
                                          </div>
                                      )}
-                                </div>
-                            </div>
-                        </div>
-                    )})}
-                 </div>
-              </div>
-
-              {/* Extras & Stats */}
-              <div className="bg-brand-gray border border-gray-200 p-4 sm:p-6 rounded-2xl">
-                 <h3 className="text-xs sm:text-sm font-bold text-gray-800 uppercase tracking-wider mb-4 border-b border-gray-200 pb-2">Desglose Final</h3>
-                 
-                 {isCompleted && (
-                     <div className="mb-6 bg-white p-4 sm:p-5 rounded-xl border border-gray-100 shadow-sm">
-                        <div className="mb-5 pb-5 border-b border-gray-100">
-                          <h4 className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-3 flex items-center">
-                            <CheckCircle className="w-3.5 h-3.5 mr-1" /> Preguntas Aprobadas ({allSubsCompleted.length})
-                          </h4>
-                          <ul className="space-y-2">
-                             {allSubsCompleted.map((s, i) => (
-                                <li key={i} className="text-xs text-gray-600 flex items-start">
-                                   <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1 mr-2 shrink-0"></div>
-                                   {s.text} <span className="font-bold ml-1 text-green-700">+{s.points}</span>
-                                </li>
-                             ))}
-                             {allSubsCompleted.length === 0 && <p className="text-xs text-gray-400 italic">Ninguna completada.</p>}
-                          </ul>
-                        </div>
-                        
-                        <div>
-                          <h4 className="text-[10px] font-bold text-red-600 uppercase tracking-widest mb-3 flex items-center">
-                            <XCircle className="w-3.5 h-3.5 mr-1" /> Preguntas Rechazadas ({allSubsNotCompleted.length})
-                          </h4>
-                          <ul className="space-y-3">
-                             {allSubsNotCompleted.map((s, i) => (
-                                <li key={i} className="bg-red-50/50 p-3 rounded-lg border border-red-100/50">
-                                   <p className="text-xs font-semibold text-gray-800 mb-1">{s.text}</p>
-                                   <p className="text-xs text-red-700 italic border-l-2 border-red-300 pl-2">Razón: {s.reason}</p>
-                                </li>
-                             ))}
-                             {allSubsNotCompleted.length === 0 && <p className="text-xs text-gray-400 italic">No hubo rechazos, todo se completó con éxito.</p>}
-                          </ul>
-                        </div>
-                     </div>
-                 )}
-
-                 <div>
-                     <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-2">Notas Adicionales / Cierre</label>
-                     {isCompleted ? (
-                         <div className="p-3 sm:p-4 bg-white rounded-xl border border-gray-200 min-h-[80px] text-xs sm:text-sm text-gray-700 italic">
-                             {notas || 'No se adjuntaron notas adicionales al cierre del servicio.'}
+                                 </div>
+                             </div>
                          </div>
-                     ) : (
-                         <textarea 
-                           value={notas} 
-                           onChange={(e) => setNotas(e.target.value)}
-                           className="w-full bg-white border border-gray-300 rounded-xl p-3 sm:p-4 text-xs sm:text-sm focus:ring-2 focus:ring-brand-dark outline-none" 
-                           rows={3} 
-                           placeholder="Agrega observaciones generales de la visita, recomendaciones para próximos mantenimientos..."
-                         />
-                     )}
+                     );
+                 })}
+             </div>
+
+             {/* Final Notes */}
+             <div className="mt-8 bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-sm">
+                 <label className="block text-sm font-bold text-gray-800 mb-2">Notas u observaciones generales del servicio</label>
+                 <textarea
+                     disabled={isCompleted || !isOwner}
+                     value={notas}
+                     onChange={(e) => setNotas(e.target.value)}
+                     className="w-full border-gray-300 rounded-xl shadow-sm focus:border-brand-dark focus:ring-brand-dark p-4 min-h-[120px] text-sm disabled:bg-gray-50 disabled:text-gray-600"
+                     placeholder="Escribe aquí cualquier observación adicional relevante..."
+                 />
+             </div>
+
+             {/* Validation Errors Box */}
+             {validationError && (
+                 <div className="mt-8 bg-red-50 border border-red-200 rounded-2xl p-5 sm:p-6 animate-in fade-in slide-in-from-bottom-4">
+                     <div className="flex items-center mb-3">
+                         <AlertCircle className="w-6 h-6 text-red-500 mr-2" />
+                         <h3 className="font-bold text-red-800">Faltan datos para finalizar la visita</h3>
+                     </div>
+                     <ul className="space-y-1.5 ml-8 text-sm text-red-700">
+                         {validationError.messages.map((msg, idx) => (
+                             <li key={idx}>{msg}</li>
+                         ))}
+                     </ul>
+                     <p className="text-xs text-red-500 mt-4 ml-8 italic">Revisa los bloques marcados en rojo más arriba.</p>
                  </div>
-              </div>
+             )}
 
-          </div>
+             {/* Submit Button */}
+             {!isCompleted && isOwner && (
+                 <div className="mt-8 flex justify-end">
+                     <button
+                         onClick={handleCompleteVisit}
+                         disabled={saving || downloading}
+                         className="w-full sm:w-auto flex items-center justify-center px-8 py-4 bg-brand-dark text-white rounded-xl font-bold text-lg hover:bg-brand-hover transition-colors shadow-lg shadow-brand-dark/20 disabled:opacity-50"
+                     >
+                         {saving ? (
+                             <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3" /> Guardando...</>
+                         ) : (
+                             <><CheckCircle className="w-6 h-6 mr-2" /> Finalizar y Enviar Reporte</>
+                         )}
+                     </button>
+                 </div>
+             )}
 
-          <div className="border-t border-gray-100 bg-gray-50 p-4 sm:p-6 text-center">
-              <p className="text-[8px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest">Documento Generado por Plataforma Towa TechManager</p>
           </div>
       </div>
-
-      {!isCompleted && isOwner && (
-          <div className="flex justify-end pt-4 sm:pt-6">
-              <button 
-                  type="button"
-                  onClick={handleCompleteVisit}
-                  disabled={saving}
-                  className="w-full sm:w-auto bg-brand-dark text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl font-bold text-base sm:text-lg hover:bg-brand-hover transition-colors shadow-lg disabled:opacity-50 flex items-center justify-center"
-              >
-                  {saving ? 'Validando Reporte...' : '✔ Guardar y Completar Visita'}
-              </button>
-          </div>
-      )}
-
-      {validationError && (
-          <div className="fixed bottom-6 right-6 left-6 sm:left-auto sm:w-[450px] bg-[#163f3a] text-white p-5 rounded-2xl shadow-2xl z-50 animate-in slide-in-from-bottom-5">
-              <div className="flex items-start">
-                  <AlertCircle className="w-8 h-8 text-yellow-400 mr-3 shrink-0" />
-                  <div className="flex-1">
-                      <h4 className="font-bold text-base mb-2">Información Incompleta</h4>
-                      <div className="text-xs text-white/90 space-y-1.5 mb-4 max-h-[150px] overflow-y-auto">
-                          {validationError.messages.map((msg, i) => (
-                             <p key={i} className="leading-relaxed border-l-2 border-white/20 pl-2">{msg}</p>
-                          ))}
-                      </div>
-                      <button onClick={() => setValidationError(null)} className="text-sm bg-white text-[#163f3a] hover:bg-white/90 px-4 py-2 rounded-lg transition-colors font-bold w-full sm:w-auto">
-                          Entendido, voy a completarlo
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
-
     </div>
   );
 }

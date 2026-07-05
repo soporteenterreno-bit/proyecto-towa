@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 import { Plus, Edit2, Trash2, ArrowLeft, Monitor, Wifi, Zap, Printer } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 
@@ -21,9 +20,9 @@ export default function Inventario() {
   const fetchInventario = async () => {
     if (!tiendaId) return;
     try {
-        const q = query(collection(db, 'inventario'), where('id_tienda', '==', tiendaId));
-        const snapshot = await getDocs(q);
-        setInventario(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const { data, error } = await supabase.from('inventario').select('*').eq('id_tienda', tiendaId);
+        if (error) throw error;
+        setInventario(data || []);
     } catch (e) {
         console.error(e);
     } finally {
@@ -37,9 +36,9 @@ export default function Inventario() {
     e.preventDefault();
     try {
       if (editingItem) {
-        await updateDoc(doc(db, 'inventario', editingItem.id), formData);
+        await supabase.from('inventario').update(formData).eq('id', editingItem.id);
       } else {
-        await addDoc(collection(db, 'inventario'), { ...formData, id_tienda: tiendaId });
+        await supabase.from('inventario').insert({ ...formData, id_tienda: tiendaId });
       }
       setIsModalOpen(false);
       fetchInventario();
@@ -49,7 +48,7 @@ export default function Inventario() {
   const handleDelete = async (id: string) => {
     if (!window.confirm("¿Eliminar componente?")) return;
     try {
-      await deleteDoc(doc(db, 'inventario', id));
+      await supabase.from('inventario').delete().eq('id', id);
       fetchInventario();
     } catch (e) { console.error(e); }
   };
@@ -103,7 +102,7 @@ export default function Inventario() {
                 </div>
                 <div className="space-y-2 text-sm">
                    <div className="flex justify-between"><span className="text-gray-500">S/N:</span><span className="font-mono bg-gray-50 px-2 rounded border border-gray-100">{item.serial}</span></div>
-                   <div className="flex justify-between"><span className="text-gray-500">Estado Físico:</span><span className={item.estado_fisico.includes('Malo') ? 'text-red-500 font-medium' : 'text-gray-700'}>{item.estado_fisico}</span></div>
+                   <div className="flex justify-between"><span className="text-gray-500">Estado Físico:</span><span className={item.estado_fisico?.includes('Malo') ? 'text-red-500 font-medium' : 'text-gray-700'}>{item.estado_fisico}</span></div>
                    <div className="flex justify-between"><span className="text-gray-500">Operatividad:</span><span className={item.estado_operativo === 'Operativo' ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>{item.estado_operativo}</span></div>
                 </div>
              </div>

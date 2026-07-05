@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 import { useAuth, UserRole } from '../context/AuthContext';
 import { Shield, UserCog, Mail, Edit2, Trash2 } from 'lucide-react';
 import { PAISES_LATAM } from '../constants';
@@ -17,12 +16,12 @@ export default function Personal() {
     nombre: '', telefono: '', pais: '', direccion: '', rol: 'tecnico' as UserRole, area_trabajo: '', jefe_inmediato: '', cargo: ''
   });
 
-
-    const fetchUsers = async () => {
+  const fetchUsers = async () => {
     try {
-        const snapshot = await getDocs(collection(db, 'users'));
-        const usersData = snapshot.docs.map(docSnap => {
-            const data = docSnap.data();
+        const { data: usersData, error } = await supabase.from('users').select('*');
+        if (error) throw error;
+        
+        const updatedUsers = (usersData || []).map(data => {
             let nombre = data.nombre;
             
             // Extract name from email if not defined
@@ -31,12 +30,12 @@ export default function Personal() {
                 nombre = parts.map((part: string) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
                 
                 // Fire and forget update to DB so it persists
-                updateDoc(doc(db, 'users', docSnap.id), { nombre }).catch(console.error);
+                supabase.from('users').update({ nombre }).eq('id', data.id).catch(console.error);
             }
 
-            return { id: docSnap.id, ...data, nombre };
+            return { ...data, nombre };
         });
-        setUsers(usersData);
+        setUsers(updatedUsers);
     } catch (e) {
         console.error(e);
     } finally {
@@ -65,7 +64,7 @@ export default function Personal() {
       e.preventDefault();
       if(!editingUser) return;
       try {
-          await updateDoc(doc(db, 'users', editingUser.id), formData);
+          await supabase.from('users').update(formData).eq('id', editingUser.id);
           setIsEditModalOpen(false);
           fetchUsers();
       } catch (err) {
@@ -80,7 +79,10 @@ export default function Personal() {
       }
       if(window.confirm('¿Estás seguro de que deseas eliminar permanentemente de la base de datos a este usuario? Esta acción es irreversible.')) {
           try {
-              await deleteDoc(doc(db, 'users', userId));
+              // Delete user data from public.users
+              await supabase.from('users').delete().eq('id', userId);
+              // Note: Auth user deletion is usually handled via admin api, 
+              // but deleting from the public schema is a good start.
               fetchUsers();
           } catch(err) {
               console.error(err);

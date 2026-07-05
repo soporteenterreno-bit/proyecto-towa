@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { supabase } from '../supabase';
 import { preloadPaisesData } from '../scripts/preloadData';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -9,16 +8,17 @@ import StoreForm from '../components/StoreForm';
 interface User {
   id: string;
   email: string;
-  role: string;
-  createdAt: string;
+  rol: string;
+  created_at: string;
 }
 
 interface Tienda {
   id: string;
-  pais_tienda: string;
-  ciudad_region: string;
-  establecimiento_tienda: string;
-  direccion_referencia: string;
+  pais: string;
+  ciudad: string;
+  region: string;
+  establecimiento_cc: string;
+  direccion: string;
   estatus: string;
 }
 
@@ -29,50 +29,51 @@ export default function AdminDashboard() {
   const [pieFilter, setPieFilter] = useState<string>('Todos');
 
   useEffect(() => {
-    const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const usersData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as User[];
-      setUsers(usersData);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'users');
-    });
+    const fetchUsers = async () => {
+      const { data } = await supabase.from('users').select('*');
+      if (data) setUsers(data as User[]);
+    };
 
-    const unsubscribeTiendas = onSnapshot(collection(db, 'Tienda'), (snapshot) => {
-      const tiendasData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Tienda[];
-      setTiendas(tiendasData);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'Tienda');
-    });
+    const fetchTiendas = async () => {
+      const { data } = await supabase.from('tiendas').select('*');
+      if (data) setTiendas(data as Tienda[]);
+    };
+
+    fetchUsers();
+    fetchTiendas();
+
+    const usersSub = supabase.channel('public:users')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, fetchUsers)
+      .subscribe();
+
+    const tiendasSub = supabase.channel('public:tiendas')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tiendas' }, fetchTiendas)
+      .subscribe();
 
     return () => {
-      unsubscribeUsers();
-      unsubscribeTiendas();
+      supabase.removeChannel(usersSub);
+      supabase.removeChannel(tiendasSub);
     };
   }, []);
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     try {
-      await updateDoc(doc(db, 'users', userId), { role: newRole });
+      await supabase.from('users').update({ rol: newRole }).eq('id', userId);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
+      console.error(error);
     }
   };
 
   const handleStatusChange = async (tiendaId: string, newStatus: string) => {
     try {
-      await updateDoc(doc(db, 'Tienda', tiendaId), { estatus: newStatus });
+      await supabase.from('tiendas').update({ estatus: newStatus }).eq('id', tiendaId);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `Tienda/${tiendaId}`);
+      console.error(error);
     }
   };
 
   // Summary logic
-  const targets = {
+  const targets: Record<string, number> = {
     Colombia: 82,
     Guatemala: 55,
     Ecuador: 45,
@@ -83,21 +84,23 @@ export default function AdminDashboard() {
   };
 
   const currentCounts = tiendas.reduce((acc, tienda) => {
-    acc[tienda.pais_tienda] = (acc[tienda.pais_tienda] || 0) + 1;
+    const p = tienda.pais || 'Desconocido';
+    acc[p] = (acc[p] || 0) + 1;
     acc.Total = (acc.Total || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
-  const filteredTiendas = pieFilter === 'Todos' ? tiendas : tiendas.filter(t => t.pais_tienda === pieFilter);
+  const filteredTiendas = pieFilter === 'Todos' ? tiendas : tiendas.filter(t => t.pais === pieFilter);
   const statusCounts = filteredTiendas.reduce((acc, t) => {
-    acc[t.estatus] = (acc[t.estatus] || 0) + 1;
+    const status = t.estatus || 'Sin Estatus';
+    acc[status] = (acc[status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
   const pieData = [
     { name: 'Tienda Activa', value: statusCounts['Tienda Activa'] || 0, color: '#16a34a' },
     { name: 'Tienda Existente', value: statusCounts['Tienda Existente'] || 0, color: '#2563eb' },
-    { name: 'Tienda no existe', value: statusCounts['Tienda no existe'] || 0, color: '#dc2626' },
+    { name: 'Tienda no existe', value: statusCounts['Tienda No Existe'] || statusCounts['Tienda no existe'] || 0, color: '#dc2626' },
   ].filter(d => d.value > 0);
 
   return (
@@ -189,7 +192,7 @@ export default function AdminDashboard() {
                   className="pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-[#1c322e] focus:border-[#1c322e] sm:text-sm rounded-md border"
                 >
                   <option value="Todos">Todos los países</option>
-                  {Array.from(new Set(tiendas.map(t => t.pais_tienda))).sort().map(pais => (
+                  {Array.from(new Set(tiendas.map(t => t.pais))).filter(Boolean).sort().map(pais => (
                     <option key={pais} value={pais}>{pais}</option>
                   ))}
                 </select>
@@ -238,15 +241,16 @@ export default function AdminDashboard() {
                 <tr key={u.id}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{u.email}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(u.createdAt).toLocaleDateString()}
+                    {u.created_at ? new Date(u.created_at).toLocaleDateString() : 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <select
-                      value={u.role}
+                      value={u.rol || 'tecnico'}
                       onChange={(e) => handleRoleChange(u.id, e.target.value)}
                       className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-[#1c322e] focus:border-[#1c322e] sm:text-sm rounded-md border"
                     >
-                      <option value="usuario">Usuario</option>
+                      <option value="tecnico">Técnico</option>
+                      <option value="coordinador">Coordinador</option>
                       <option value="administrador">Administrador</option>
                     </select>
                   </td>
@@ -280,13 +284,13 @@ export default function AdminDashboard() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {tiendas.map((t) => (
                   <tr key={t.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{t.pais_tienda}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{t.ciudad_region}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{t.establecimiento_tienda}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{t.direccion_referencia}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{t.pais}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{t.ciudad} {t.region ? `(${t.region})` : ''}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{t.establecimiento_cc}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{t.direccion}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <select
-                        value={t.estatus}
+                        value={t.estatus || 'Tienda Activa'}
                         onChange={(e) => handleStatusChange(t.id, e.target.value)}
                         className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-[#1c322e] focus:border-[#1c322e] sm:text-sm rounded-md border ${
                           t.estatus === 'Tienda Activa' ? 'text-green-600 font-medium' :
@@ -294,7 +298,7 @@ export default function AdminDashboard() {
                           'text-red-600 font-medium'
                         }`}
                       >
-                        <option value="Tienda no existe">Tienda no existe</option>
+                        <option value="Tienda No Existe">Tienda no existe</option>
                         <option value="Tienda Activa">Tienda Activa</option>
                         <option value="Tienda Existente">Tienda Existente</option>
                       </select>

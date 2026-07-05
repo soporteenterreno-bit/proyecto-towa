@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, writeBatch } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Edit2, Trash2, MapPin, Search, Package, Download, Upload, XCircle, Filter, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -30,12 +29,11 @@ export default function Tiendas() {
   const [importing, setImporting] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-
   const fetchTiendas = async () => {
     try {
-        const q = collection(db, 'tiendas');
-        const snapshot = await getDocs(q);
-        setTiendas(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const { data, error } = await supabase.from('tiendas').select('*');
+        if (error) throw error;
+        setTiendas(data || []);
     } catch (e) {
         console.error(e);
     } finally {
@@ -65,9 +63,9 @@ export default function Tiendas() {
     try {
       const data = buildTiendaData();
       if (editingTienda) {
-        await updateDoc(doc(db, 'tiendas', editingTienda.id), data);
+        await supabase.from('tiendas').update(data).eq('id', editingTienda.id);
       } else {
-        await addDoc(collection(db, 'tiendas'), data);
+        await supabase.from('tiendas').insert(data);
       }
       setIsModalOpen(false);
       fetchTiendas();
@@ -77,7 +75,7 @@ export default function Tiendas() {
   const handleDelete = async (id: string) => {
     if (role === 'tecnico' || !window.confirm("¿Eliminar tienda?")) return;
     try {
-      await deleteDoc(doc(db, 'tiendas', id));
+      await supabase.from('tiendas').delete().eq('id', id);
       fetchTiendas();
     } catch (e) { console.error(e); }
   };
@@ -160,16 +158,14 @@ export default function Tiendas() {
           return;
         }
 
-        // Extremely simple CSV parser (does not handle nested commas inside quotes perfectly, so advise users to use simple values or ; if necessary in the future, but standard split by comma is asked for the example)
+        const toInsert = [];
         let importedCount = 0;
-        const batch = writeBatch(db);
         
         // Loop over rows starting from 1 (ignore header)
         for(let i = 1; i < rows.length; i++) {
-          const cols = rows[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-          // Requires at least codigo, pais, ciudad, establecimiento, direccion
-          if(cols.length >= 6) {
-             const newDocRef = doc(collection(db, 'tiendas'));
+           const cols = rows[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+           // Requires at least codigo, pais, ciudad, establecimiento, direccion
+           if(cols.length >= 6) {
              const correoRaw = cols[9] || '';
              const correos = correoRaw ? correoRaw.split(';').map((e: string) => e.trim()).filter(Boolean) : [];
              const lat = cols[10] ? parseFloat(cols[10]) : NaN;
@@ -188,13 +184,15 @@ export default function Tiendas() {
              if (!isNaN(lat) && !isNaN(lng)) {
                tiendaData.coordenadas = { lat, lng };
              }
-             batch.set(newDocRef, tiendaData);
+             toInsert.push(tiendaData);
              importedCount++;
-          }
+           }
         }
         
-        if (importedCount > 0) {
-           await batch.commit();
+        if (toInsert.length > 0) {
+           const { error } = await supabase.from('tiendas').insert(toInsert);
+           if (error) throw error;
+           
            alert(`Se importaron ${importedCount} tiendas exitosamente.`);
            fetchTiendas();
         } else {

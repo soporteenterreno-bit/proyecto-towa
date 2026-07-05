@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, updateDoc, doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { Clock, Play, CheckCircle, FileText, Search, MapPin, CalendarCheck, Filter, XCircle, Edit } from 'lucide-react';
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
@@ -39,22 +38,21 @@ export default function TablaVisitas() {
   const fetchVisitas = async () => {
     try {
       setLoading(true);
-      const q = query(collection(db, 'visitas'));
-      const snapshot = await getDocs(q);
-      const visitasData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
+      const { data: visitasData, error } = await supabase.from('visitas').select('*');
+      if (error) throw error;
 
-      const enhancedVisitas = await Promise.all(visitasData.map(async (v: any) => {
+      const enhancedVisitas = await Promise.all((visitasData || []).map(async (v: any) => {
            let tiendaData: Record<string, any> = { codigo_tienda: '?', establecimiento_cc: '?', ciudad: '?', pais: '?' };
            let tecnicoData: Record<string, any> = { nombre: '?' };
 
            try {
               if (v.id_tienda) {
-                  const tSnap = await getDoc(doc(db, 'tiendas', v.id_tienda));
-                  if (tSnap.exists()) tiendaData = tSnap.data() as Record<string, any>;
+                  const { data: tSnap } = await supabase.from('tiendas').select('*').eq('id', v.id_tienda).single();
+                  if (tSnap) tiendaData = tSnap;
               }
               if (v.tecnico_uid) {
-                  const techSnap = await getDoc(doc(db, 'users', v.tecnico_uid));
-                  if (techSnap.exists()) tecnicoData = techSnap.data() as Record<string, any>;
+                  const { data: techSnap } = await supabase.from('users').select('*').eq('id', v.tecnico_uid).single();
+                  if (techSnap) tecnicoData = techSnap;
               }
            } catch(e) {}
            
@@ -97,12 +95,12 @@ export default function TablaVisitas() {
       correo_encargado: v.correo_encargado || ''
     });
     
-    // Fetch technicians in the exact same country
     try {
-        const usersSnap = await getDocs(collection(db, 'users'));
-        const allUsers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
-        const filteredTechs = allUsers.filter(u => u.rol === 'tecnico' && u.pais === v.tienda.pais);
-        setAvailableTecnicos(filteredTechs);
+        const { data: allUsers } = await supabase.from('users').select('*');
+        if (allUsers) {
+            const filteredTechs = allUsers.filter(u => u.rol === 'tecnico' && u.pais === v.tienda.pais);
+            setAvailableTecnicos(filteredTechs);
+        }
     } catch(e) {
         console.error(e);
     }
@@ -117,12 +115,13 @@ export default function TablaVisitas() {
 
       setSavingReassignment(true);
       try {
-          await updateDoc(doc(db, 'visitas', selectedVisita.id), {
+          await supabase.from('visitas').update({
               tecnico_uid: editData.tecnico_uid || null,
               fecha_programada: editData.fecha_programada,
               prioridad: editData.prioridad,
               correo_encargado: editData.correo_encargado || null
-          });
+          }).eq('id', selectedVisita.id);
+          
           setIsEditModalOpen(false);
           await fetchVisitas(); // Refresh the full list
       } catch (e) {
@@ -252,7 +251,7 @@ export default function TablaVisitas() {
                                 </td>
                                 <td className="p-4">
                                     <div className="mb-1">{getStatusBadge(v.status)}</div>
-                                    {v.ponderacion_final !== undefined && (
+                                    {v.ponderacion_final !== undefined && v.ponderacion_final !== null && (
                                         <div className="text-xs text-brand-dark font-semibold flex items-center mt-2">
                                             <FileText className="w-3 h-3 mr-1" /> Calf: {v.ponderacion_final}%
                                         </div>

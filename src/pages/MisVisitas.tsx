@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Clock, Play, CheckCircle, FileText, Search, MapPin, CalendarCheck, Filter, XCircle, UserPlus } from 'lucide-react';
@@ -25,46 +24,32 @@ export default function MisVisitas() {
       if (!user) return;
       try {
         // 1. Visitas asignadas al técnico actual
-        const assignedSnap = await getDocs(
-          query(collection(db, 'visitas'), where('tecnico_uid', '==', user.uid))
-        );
+        const { data: assignedSnap } = await supabase.from('visitas').select('*').eq('tecnico_uid', user.uid);
 
         // 2. Visitas pendientes sin técnico asignado (para auto-asignación en su país)
-        const unassignedSnap = await getDocs(
-          query(
-            collection(db, 'visitas'),
-            where('status', '==', 'Pendiente'),
-            where('tecnico_uid', '==', null)
-          )
-        ).catch(() => ({ docs: [] }));
+        const { data: unassignedSnap } = await supabase.from('visitas').select('*').eq('status', 'Pendiente').is('tecnico_uid', null);
 
         // También visitas pendientes donde tecnico_uid es string vacío
-        const unassignedEmptySnap = await getDocs(
-          query(
-            collection(db, 'visitas'),
-            where('status', '==', 'Pendiente'),
-            where('tecnico_uid', '==', '')
-          )
-        ).catch(() => ({ docs: [] }));
+        const { data: unassignedEmptySnap } = await supabase.from('visitas').select('*').eq('status', 'Pendiente').eq('tecnico_uid', '');
 
         const allDocs = [
-          ...assignedSnap.docs,
-          ...unassignedSnap.docs,
-          ...unassignedEmptySnap.docs
+          ...(assignedSnap || []),
+          ...(unassignedSnap || []),
+          ...(unassignedEmptySnap || [])
         ];
 
         // Deduplicate by id
         const seen = new Set<string>();
         const uniqueDocs = allDocs.filter(d => { if (seen.has(d.id)) return false; seen.add(d.id); return true; });
 
-        const visitasRaw = uniqueDocs.map(d => ({ id: d.id, ...d.data() } as any));
+        const visitasRaw = uniqueDocs.map(d => ({ id: d.id, ...d } as any));
 
         // Enhance with tienda data
         const enhanced = await Promise.all(visitasRaw.map(async (v: any) => {
           let tiendaData: Record<string, any> = { codigo_tienda: '?', establecimiento_cc: '?', ciudad: '?', pais: '' };
           try {
-            const tSnap = await getDoc(doc(db, 'tiendas', v.id_tienda));
-            if (tSnap.exists()) tiendaData = tSnap.data() as Record<string, any>;
+            const { data: tSnap } = await supabase.from('tiendas').select('*').eq('id', v.id_tienda).single();
+            if (tSnap) tiendaData = tSnap;
           } catch(e) {}
           return { ...v, tienda: tiendaData };
         }));
@@ -130,7 +115,7 @@ export default function MisVisitas() {
     if (!user) return;
     setAssigning(visitaId);
     try {
-      await updateDoc(doc(db, 'visitas', visitaId), { tecnico_uid: user.uid });
+      await supabase.from('visitas').update({ tecnico_uid: user.uid }).eq('id', visitaId);
       setVisitas(prev => prev.map(v => v.id === visitaId ? { ...v, tecnico_uid: user.uid } : v));
     } catch(e) {
       console.error(e);
@@ -144,7 +129,7 @@ export default function MisVisitas() {
       if (v.status === 'Pendiente' && role === 'tecnico') {
           // Auto transition to En Curso
           try {
-             await updateDoc(doc(db, 'visitas', v.id), { status: 'En Curso', fecha_inicio: new Date().toISOString() });
+             await supabase.from('visitas').update({ status: 'En Curso', fecha_inicio: new Date().toISOString() }).eq('id', v.id);
           } catch(e) { console.error(e); }
       }
       // Navigate to form execution page
@@ -251,7 +236,7 @@ export default function MisVisitas() {
                                         <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Disponible en tu país</span>
                                       </div>
                                     )}
-                                    {v.ponderacion_final !== undefined && v.tecnico_uid === user?.uid && (
+                                    {v.ponderacion_final !== undefined && v.ponderacion_final !== null && v.tecnico_uid === user?.uid && (
                                         <div className={`text-xs font-semibold flex items-center mt-2 ${v.status === 'Completada' ? 'text-brand-dark' : 'text-blue-600'}`}>
                                             <FileText className="w-3 h-3 mr-1" /> {v.status === 'Completada' ? 'Calificación:' : 'Progreso:'} {v.ponderacion_final}%
                                         </div>

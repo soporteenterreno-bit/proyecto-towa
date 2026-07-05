@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { supabase } from '../supabase';
 import StoreForm from '../components/StoreForm';
 
 interface Tienda {
   id: string;
-  pais_tienda: string;
-  ciudad_region: string;
-  establecimiento_tienda: string;
-  direccion_referencia: string;
+  pais: string;
+  ciudad: string;
+  region: string;
+  establecimiento_cc: string;
+  direccion: string;
   estatus: string;
 }
 
@@ -16,18 +16,19 @@ export default function UserDashboard() {
   const [tiendas, setTiendas] = useState<Tienda[]>([]);
 
   useEffect(() => {
-    const unsubscribeTiendas = onSnapshot(collection(db, 'Tienda'), (snapshot) => {
-      const tiendasData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Tienda[];
-      setTiendas(tiendasData);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'Tienda');
-    });
+    const fetchTiendas = async () => {
+      const { data } = await supabase.from('tiendas').select('*');
+      if (data) setTiendas(data as Tienda[]);
+    };
+
+    fetchTiendas();
+
+    const tiendasSub = supabase.channel('public:tiendas')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tiendas' }, fetchTiendas)
+      .subscribe();
 
     return () => {
-      unsubscribeTiendas();
+      supabase.removeChannel(tiendasSub);
     };
   }, []);
 
@@ -59,17 +60,17 @@ export default function UserDashboard() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {tiendas.map((t) => (
                   <tr key={t.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{t.pais_tienda}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{t.ciudad_region}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{t.establecimiento_tienda}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{t.direccion_referencia}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{t.pais}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{t.ciudad} {t.region ? `(${t.region})` : ''}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{t.establecimiento_cc}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{t.direccion}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         t.estatus === 'Tienda Activa' ? 'bg-green-100 text-green-800' :
                         t.estatus === 'Tienda Existente' ? 'bg-blue-100 text-blue-800' :
                         'bg-red-100 text-red-800'
                       }`}>
-                        {t.estatus}
+                        {t.estatus || 'Sin estatus'}
                       </span>
                     </td>
                   </tr>

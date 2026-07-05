@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 import { Save, User, Phone, MapPin, Briefcase } from 'lucide-react';
 import { PAISES_LATAM } from '../constants';
 import PhoneInput from 'react-phone-number-input';
@@ -18,7 +17,6 @@ export default function Cuenta() {
     direccion: '',
   });
 
-
   useEffect(() => {
     if (userData) {
       setFormData({
@@ -30,9 +28,14 @@ export default function Cuenta() {
       const fetchJefe = async () => {
          if (userData.jefe_inmediato) {
              try {
-                const jSnap = await getDoc(doc(db, 'users', userData.jefe_inmediato));
-                if (jSnap.exists()) {
-                    setJefeNombre(jSnap.data().nombre);
+                const { data, error } = await supabase
+                  .from('users')
+                  .select('nombre')
+                  .eq('id', userData.jefe_inmediato)
+                  .single();
+                  
+                if (data && !error) {
+                    setJefeNombre(data.nombre);
                 }
              } catch(e) {}
          }
@@ -56,12 +59,12 @@ export default function Cuenta() {
     setLoading(true);
     setSuccess(false);
     try {
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
+      await supabase.from('users').update({
         telefono: formData.telefono,
         pais: formData.pais,
         direccion: formData.direccion
-      });
+      }).eq('id', user.id);
+      
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
@@ -72,7 +75,7 @@ export default function Cuenta() {
     }
   };
 
-  const currentDisplayName = userData?.nombre || user?.displayName || 'Usuario';
+  const currentDisplayName = userData?.nombre || user?.email?.split('@')[0] || 'Usuario';
   const initial = currentDisplayName.charAt(0).toUpperCase();
 
   return (

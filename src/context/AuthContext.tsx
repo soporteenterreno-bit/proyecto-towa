@@ -1,11 +1,10 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { auth, db, googleProvider, handleFirestoreError, OperationType } from '../firebase';
+import { User } from '@supabase/supabase-js';
+import { supabase } from '../supabase';
 
 export type UserRole = 'administrador' | 'coordinador' | 'tecnico';
 
-interface UserData {
+export interface UserData {
   uid: string;
   email: string;
   nombre: string;
@@ -35,82 +34,119 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        try {
-          const userDocRef = doc(db, 'users', currentUser.uid);
-          const userDoc = await getDoc(userDocRef);
-          
-          if (userDoc.exists()) {
-            let data = userDoc.data() as Omit<UserData, 'uid'>;
-            let currentRole = data.rol;
-            
-            // Auto-upgrade default admin if they were created as 'tecnico'
-            if (currentUser.email === 'jhan.rocker@gmail.com' && currentRole !== 'administrador') {
-              try {
-                await updateDoc(userDocRef, { rol: 'administrador' });
-                currentRole = 'administrador';
-                data.rol = 'administrador';
-              } catch (e) {
-                console.error("Failed to auto-upgrade admin role", e);
-              }
-            }
-            setUserData({ uid: currentUser.uid, ...data });
-            setRole(currentRole);
-          } else {
-            // Create user document with default role "tecnico" (or "administrador" for default admin)
-            const isDefaultAdmin = currentUser.email === 'jhan.rocker@gmail.com';
-            const initialRole: UserRole = isDefaultAdmin ? 'administrador' : 'tecnico';
-            
-            const newUser: Omit<UserData, 'uid'> = {
-              email: currentUser.email || '',
-              nombre: currentUser.displayName || '',
-              rol: initialRole,
-            };
-            await setDoc(userDocRef, { ...newUser, createdAt: new Date().toISOString() });
-            setUserData({ uid: currentUser.uid, ...newUser });
-            setRole(initialRole);
-          }
-        } catch (error) {
-          console.error("Error fetching or creating user document:", error);
-          alert("Hubo un problema al cargar tu perfil. Verifica tu conexión o contacta al administrador.");
-          setRole(null);
-          setUserData(null);
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        setRole(null);
-        setUserData(null);
+    // Check active session on mount
+    const fetchSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await handleSession(session?.user || null);
+      } catch (error) {
+        console.error("Error getting session:", error);
+      } finally {
         setLoading(false);
       }
-    });
+    };
 
-    return () => unsubscribe();
+    fetchSession();
+
+    // Listen for auth changes
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+          await handleSession(session?.user || null);
+        }
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
+
+  const handleSession = async (currentUser: User | null) => {
+    setUser(currentUser);
+    if (currentUser) {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', currentUser.id)
+          .single();
+
+        if (error) {
+          console.error("Error fetching user document from Supabase:", error);
+          if (error.code === 'PGRST116') {
+               const isDefaultAdmin = currentUser.email === 'jhan.rocker@gmail.com';
+               const initialRole: UserRole = isDefaultAdmin ? 'administrador' : 'tecnico';
+               const { data: newData, error: insertError } = await supabase
+                .from('users')
+                .upsert({
+                   id: currentUser.id,
+                   email: currentUser.email || '',
+                   nombre: currentUser.user_metadata?.full_name || '',
+                   rol: initialRole
+                })
+                .select()
+                .single();
+                
+               if (!insertError && newData) {
+                 setUserData({ uid: newData.id, ...newData });
+                 setRole(newData.rol);
+                 return;
+               }
+          }
+          setRole(null);
+          setUserData(null);
+          return;
+        }
+
+        if (data) {
+          let currentRole = data.rol as UserRole;
+          
+          // Auto-upgrade default admin if needed
+          if (currentUser.email === 'jhan.rocker@gmail.com' && currentRole !== 'administrador') {
+            const { error: updateError } = await supabase
+              .from('users')
+              .update({ rol: 'administrador' })
+              .eq('id', currentUser.id);
+              
+            if (!updateError) {
+              currentRole = 'administrador';
+              data.rol = 'administrador';
+            }
+          }
+          
+          setUserData({ uid: data.id, ...data });
+          setRole(currentRole);
+        }
+      } catch (error) {
+        console.error("Error handling user session:", error);
+        setRole(null);
+        setUserData(null);
+      }
+    } else {
+      setRole(null);
+      setUserData(null);
+    }
+  };
 
   const signInWithGoogle = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+           redirectTo: window.location.origin
+        }
+      });
+      if (error) throw error;
     } catch (error: any) {
-      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-        console.log("El usuario cerró la ventana de inicio de sesión.");
-        return;
-      }
-      
       console.error("Error signing in with Google", error);
-      if (error.code === 'auth/unauthorized-domain') {
-        alert('Error: Dominio no autorizado. Para que otros usuarios puedan iniciar sesión en la app compartida, debes agregar este dominio (' + window.location.hostname + ') a la lista de "Dominios autorizados" en la consola de Firebase (Authentication -> Settings -> Authorized domains).');
-      } else {
-        alert('Error al iniciar sesión: ' + (error.message || 'Error desconocido'));
-      }
+      alert('Error al iniciar sesión: ' + (error.message || 'Error desconocido'));
     }
   };
 
   const logout = async () => {
     try {
-      await signOut(auth);
+      await supabase.auth.signOut();
     } catch (error) {
       console.error("Error signing out", error);
     }

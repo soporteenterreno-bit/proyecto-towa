@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { Store, UserCheck, AlertTriangle, CalendarCheck, Clock, Timer, PlayCircle } from 'lucide-react';
 
@@ -15,28 +14,29 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchDash = async () => {
         // Aggregate stores
-        const tSnap = await getDocs(collection(db, 'tiendas'));
-        const tiendasArr = tSnap.docs.map(d=>d.data());
+        const { data: tiendasArr } = await supabase.from('tiendas').select('*');
         
         // Aggregate techs
-        const uSnap = await getDocs(query(collection(db, 'users'), where('rol', '==', 'tecnico')));
+        const { data: uSnap } = await supabase.from('users').select('id').eq('rol', 'tecnico');
         
         // Aggregate visits
-        const vSnap = await getDocs(collection(db, 'visitas'));
-        const visitasArr = vSnap.docs.map(d=>d.data());
+        const { data: visitasArr } = await supabase.from('visitas').select('*');
 
-        const vProg = visitasArr.filter(v => v.tipo === 'Programada').length;
-        const vFalla = visitasArr.filter(v => v.tipo === 'Falla').length;
-        const vPte = visitasArr.filter(v => v.status === 'Pendiente').length;
-        const vEnCurso = visitasArr.filter(v => v.status === 'En Curso').length;
-        const vDone = visitasArr.filter(v => v.status === 'Completada').length;
+        const tiendasList = tiendasArr || [];
+        const visitasList = visitasArr || [];
 
-        // Tiempo de gestión promedio (minutos entre fecha_inicio y fecha_fin/fecha_ejecucion)
-        const completedWithTimes = visitasArr.filter(v =>
-            v.status === 'Completada' && v.fecha_inicio && (v.fecha_fin || v.fecha_ejecucion)
+        const vProg = visitasList.filter(v => v.tipo === 'Programada').length;
+        const vFalla = visitasList.filter(v => v.tipo === 'Falla').length;
+        const vPte = visitasList.filter(v => v.status === 'Pendiente').length;
+        const vEnCurso = visitasList.filter(v => v.status === 'En Curso').length;
+        const vDone = visitasList.filter(v => v.status === 'Completada').length;
+
+        // Tiempo de gestión promedio (minutos entre fecha_inicio y fecha_fin)
+        const completedWithTimes = visitasList.filter(v =>
+            v.status === 'Completada' && v.fecha_inicio && v.fecha_fin
         );
         const duraciones = completedWithTimes.map(v => {
-            const fin = new Date(v.fecha_fin || v.fecha_ejecucion).getTime();
+            const fin = new Date(v.fecha_fin).getTime();
             const ini = new Date(v.fecha_inicio).getTime();
             return (fin - ini) / 60000;
         }).filter(d => d > 0 && d < 1440);
@@ -50,8 +50,8 @@ export default function Dashboard() {
                 : `${avgMin} min`;
 
         setStats({
-            totalTiendas: tiendasArr.length,
-            totalTecnicos: uSnap.docs.length,
+            totalTiendas: tiendasList.length,
+            totalTecnicos: uSnap ? uSnap.length : 0,
             visitasProg: vProg, visitasFalla: vFalla,
             visitasPte: vPte, visitasDone: vDone,
             visitasEnCurso: vEnCurso, tiempoGestionStr
@@ -59,7 +59,7 @@ export default function Dashboard() {
 
         // Chart Data: Tiendas por Pais
         const paisesMap: any = {};
-        tiendasArr.forEach(t => {
+        tiendasList.forEach(t => {
             paisesMap[t.pais] = (paisesMap[t.pais] || 0) + 1;
         });
         const formattedChart = Object.keys(paisesMap).map(p => ({

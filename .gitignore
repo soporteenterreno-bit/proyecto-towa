@@ -6,3 +6,5 @@ coverage/
 *.log
 .env*
 !.env.example
+
+payless-f078b-firebase-adminsdk-fbsvc-a8fe33c793.json

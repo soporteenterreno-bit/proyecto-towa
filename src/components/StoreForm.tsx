@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { supabase } from '../supabase';
 import { Country, State } from 'country-state-city';
 
 export default function StoreForm() {
@@ -34,13 +33,15 @@ export default function StoreForm() {
       const countryName = Country.getCountryByCode(selectedCountryCode)?.name || '';
       const stateName = State.getStateByCodeAndCountry(formData.ciudad_region, selectedCountryCode)?.name || formData.ciudad_region;
 
-      await addDoc(collection(db, 'Tienda'), {
-        pais_tienda: countryName,
-        ciudad_region: stateName,
-        establecimiento_tienda: formData.establecimiento_tienda,
-        direccion_referencia: formData.direccion_referencia,
-        estatus: 'Tienda Activa' // Default status
+      const { error } = await supabase.from('tiendas').insert({
+        pais: countryName,
+        ciudad: stateName,
+        establecimiento_cc: formData.establecimiento_tienda,
+        direccion: formData.direccion_referencia,
+        estatus: 'Tienda Activa'
       });
+      
+      if (error) throw error;
       
       setMessage({ type: 'success', text: '¡Tienda registrada exitosamente!' });
       setFormData({
@@ -50,7 +51,7 @@ export default function StoreForm() {
       });
       setSelectedCountryCode('');
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'Tienda');
+      console.error(error);
       setMessage({ type: 'error', text: 'Error al registrar la tienda.' });
     } finally {
       setLoading(false);

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Calendar, Building, CheckSquare } from 'lucide-react';
@@ -29,14 +28,14 @@ export default function AsignarVisita() {
 
   useEffect(() => {
     const fetchBaseData = async () => {
-      const tSnap = await getDocs(collection(db, 'tiendas'));
-      setTiendas(tSnap.docs.map(d => ({id: d.id, ...d.data()})));
+      const { data: tSnap } = await supabase.from('tiendas').select('*');
+      if (tSnap) setTiendas(tSnap);
       
-      const uSnap = await getDocs(collection(db, 'users'));
-      setTecnicos(uSnap.docs.map(d => ({id: d.id, ...d.data()})).filter((u:any) => u.rol === 'tecnico'));
+      const { data: uSnap } = await supabase.from('users').select('*');
+      if (uSnap) setTecnicos(uSnap.filter((u:any) => u.rol === 'tecnico'));
 
-      const cSnap = await getDocs(collection(db, 'preguntas_componentes'));
-      setComponentesList(cSnap.docs.map(d => ({id: d.id, ...d.data()})));
+      const { data: cSnap } = await supabase.from('preguntas_componentes').select('*');
+      if (cSnap) setComponentesList(cSnap);
     };
     fetchBaseData();
   }, []);
@@ -73,7 +72,7 @@ export default function AsignarVisita() {
 
     setLoading(true);
     try {
-      await addDoc(collection(db, 'visitas'), {
+      const { error } = await supabase.from('visitas').insert({
         tipo: formData.tipo,
         tecnico_uid: formData.tecnico_uid || null,
         coordinador_uid: userData?.uid,
@@ -87,6 +86,7 @@ export default function AsignarVisita() {
         notas_coordinador: formData.notas_coordinador,
         createdAt: new Date().toISOString()
       });
+      if (error) throw error;
 
       // Send Email if specified
       if (formData.correo_encargado) {

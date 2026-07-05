@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, query, where } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Calendar, MapPin } from 'lucide-react';
@@ -24,8 +23,8 @@ export default function SolicitarVisita() {
   useEffect(() => {
     if (!paisTecnico) return;
     const fetchTiendas = async () => {
-      const snap = await getDocs(query(collection(db, 'tiendas'), where('pais', '==', paisTecnico)));
-      setTiendas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const { data } = await supabase.from('tiendas').select('*').eq('pais', paisTecnico);
+      if (data) setTiendas(data);
     };
     fetchTiendas();
   }, [paisTecnico]);
@@ -47,7 +46,7 @@ export default function SolicitarVisita() {
 
     setLoading(true);
     try {
-      await addDoc(collection(db, 'visitas'), {
+      const { error } = await supabase.from('visitas').insert({
         tipo: formData.tipo,
         tecnico_uid: user?.uid,
         coordinador_uid: null,
@@ -58,6 +57,7 @@ export default function SolicitarVisita() {
         notas_coordinador: formData.notas_coordinador,
         createdAt: new Date().toISOString()
       });
+      if (error) throw error;
       alert('Visita registrada exitosamente');
       navigate('/visitas/mis-visitas');
     } catch (error) {

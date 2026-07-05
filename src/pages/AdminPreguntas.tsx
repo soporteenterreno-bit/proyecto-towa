@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 import { Plus, Trash2, Edit2, Save, X } from 'lucide-react';
 
 interface Question {
@@ -24,20 +23,20 @@ export default function AdminPreguntas() {
   const [editName, setEditName] = useState('');
   const [editQuestions, setEditQuestions] = useState<Question[]>([]);
 
+  const fetchComponentes = async () => {
+    try {
+      const { data, error } = await supabase.from('preguntas_componentes').select('*');
+      if (error) throw error;
+      setComponentes(data as Componente[] || []);
+    } catch (error) {
+      console.error("Error fetching componentes:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'preguntas_componentes'), 
-      (snap) => {
-        const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Componente));
-        setComponentes(data);
-        setLoading(false);
-      },
-      (error) => {
-        console.error("Error fetching componentes:", error);
-        alert("Error cargando componentes: " + error.message);
-        setLoading(false);
-      }
-    );
-    return () => unsub();
+    fetchComponentes();
   }, []);
 
   const handleCreateNew = () => {
@@ -78,7 +77,7 @@ export default function AdminPreguntas() {
     const pointsPerQuestion = Math.floor(100 / editQuestions.length);
     let remainder = 100 % editQuestions.length;
     
-    setEditQuestions(editQuestions.map((q, index) => {
+    setEditQuestions(editQuestions.map((q) => {
       let p = pointsPerQuestion;
       if (remainder > 0) {
         p += 1;
@@ -100,11 +99,22 @@ export default function AdminPreguntas() {
     }
 
     try {
-      await setDoc(doc(db, 'preguntas_componentes', editingId!), {
-        name: editName,
-        questions: editQuestions
-      });
+      // Check if exists first
+      const { data: existing } = await supabase.from('preguntas_componentes').select('id').eq('id', editingId).single();
+      if (existing) {
+        await supabase.from('preguntas_componentes').update({
+          name: editName,
+          questions: editQuestions
+        }).eq('id', editingId);
+      } else {
+        await supabase.from('preguntas_componentes').insert({
+          id: editingId,
+          name: editName,
+          questions: editQuestions
+        });
+      }
       setEditingId(null);
+      fetchComponentes();
     } catch (error) {
       console.error(error);
       alert("Error al guardar componente");
@@ -113,7 +123,8 @@ export default function AdminPreguntas() {
 
   const handleDelete = async (id: string) => {
     if (window.confirm("¿Estás seguro de eliminar este componente?")) {
-      await deleteDoc(doc(db, 'preguntas_componentes', id));
+      await supabase.from('preguntas_componentes').delete().eq('id', id);
+      fetchComponentes();
     }
   };
 
