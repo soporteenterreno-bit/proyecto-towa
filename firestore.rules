@@ -1,0 +1,79 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getRole() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol
+        : null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "jhan.rocker@gmail.com" ||
+        getRole() == 'administrador'
+      );
+    }
+
+    function isCoordinator() {
+      return isSignedIn() && getRole() == 'coordinador';
+    }
+
+    function isAdminOrCoordinator() {
+      return isAdmin() || isCoordinator();
+    }
+
+    // Perfil de usuario: cualquier empleado autenticado puede leer perfiles,
+    // cada uno crea/edita el suyo, solo admin puede eliminar.
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Tiendas: lectura para todos los autenticados, escritura solo admin/coordinador.
+    match /tiendas/{tiendaId} {
+      allow read: if isSignedIn();
+      allow write: if isAdminOrCoordinator();
+    }
+
+    // Inventario: lectura para todos los autenticados, escritura solo admin/coordinador.
+    match /inventario/{itemId} {
+      allow read: if isSignedIn();
+      allow write: if isAdminOrCoordinator();
+    }
+
+    // Visitas: admin/coordinador ven todo; técnico ve las suyas y las pendientes sin asignar (para auto-asignación).
+    match /visitas/{visitaId} {
+      allow read: if isSignedIn() && (
+        isAdminOrCoordinator() ||
+        resource.data.tecnico_uid == request.auth.uid ||
+        (resource.data.status == 'Pendiente' &&
+          (resource.data.tecnico_uid == null || resource.data.tecnico_uid == ''))
+      );
+      allow create: if isAdminOrCoordinator() ||
+        // Técnico puede crear una visita solo si se auto-asigna
+        (isSignedIn() && request.resource.data.tecnico_uid == request.auth.uid);
+      allow update: if isAdminOrCoordinator() ||
+        (isSignedIn() && resource.data.tecnico_uid == request.auth.uid) ||
+        // Auto-asignación: técnico puede asignarse una visita pendiente sin técnico
+        (isSignedIn() &&
+         resource.data.status == 'Pendiente' &&
+         (resource.data.tecnico_uid == null || resource.data.tecnico_uid == '') &&
+         request.resource.data.tecnico_uid == request.auth.uid &&
+         request.resource.data.status == 'Pendiente');
+      allow delete: if isAdmin();
+    }
+
+    // Componentes de preguntas: lectura todos, escritura admin/coordinador
+    match /preguntas_componentes/{compId} {
+      allow read: if isSignedIn();
+      allow write: if isAdminOrCoordinator();
+    }
+  }
+}

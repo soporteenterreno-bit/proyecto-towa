@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Propuesta de Infraestructura Tecnológica — TechManager · Towa</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+    :root {
+      --brand:     #1d2b29;
+      --brand-mid: #2a3e3b;
+      --accent:    #4ade80;
+      --accent2:   #34d399;
+      --gray-50:   #f9fafb;
+      --gray-100:  #f3f4f6;
+      --gray-200:  #e5e7eb;
+      --gray-400:  #9ca3af;
+      --gray-600:  #4b5563;
+      --gray-800:  #1f2937;
+      --blue:      #3b82f6;
+      --orange:    #f97316;
+      --red:       #ef4444;
+      --green:     #22c55e;
+      --purple:    #a855f7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      font-size: 10pt;
+      color: var(--gray-800);
+      background: #fff;
+      line-height: 1.6;
+    }
+
+    @media print {
+      .page-break { page-break-before: always; }
+      body { font-size: 9.5pt; }
+      .no-print { display: none; }
+    }
+
+    .page { max-width: 900px; margin: 0 auto; padding: 0 40px 40px; }
+
+    /* ── COVER ── */
+    .cover {
+      background: linear-gradient(145deg, var(--brand) 0%, var(--brand-mid) 60%, #1a3330 100%);
+      color: white;
+      padding: 60px 40px;
+      min-height: 100vh;
+      display: flex; flex-direction: column; justify-content: space-between;
+      position: relative; overflow: hidden;
+    }
+    .cover::before {
+      content: ''; position: absolute; top: -80px; right: -80px;
+      width: 400px; height: 400px; border-radius: 50%;
+      background: rgba(74, 222, 128, 0.07);
+    }
+    .cover::after {
+      content: ''; position: absolute; bottom: -60px; left: -60px;
+      width: 300px; height: 300px; border-radius: 50%;
+      background: rgba(74, 222, 128, 0.05);
+    }
+    .cover-top { position: relative; z-index: 1; }
+    .cover-logo {
+      font-size: 28pt; font-weight: 800; letter-spacing: -1px; color: white;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .cover-logo span {
+      display: inline-flex; width: 40px; height: 40px;
+      background: var(--accent); border-radius: 10px;
+      font-size: 18pt; align-items: center; justify-content: center;
+    }
+    .cover-badge {
+      display: inline-block; margin-top: 16px;
+      background: rgba(74,222,128,0.2); border: 1px solid rgba(74,222,128,0.4);
+      color: var(--accent); font-size: 8pt; font-weight: 600;
+      letter-spacing: 2px; text-transform: uppercase;
+      padding: 4px 14px; border-radius: 20px;
+    }
+    .cover-center {
+      position: relative; z-index: 1; text-align: center; flex: 1;
+      display: flex; flex-direction: column; justify-content: center; padding: 60px 0;
+    }
+    .cover-title {
+      font-size: 32pt; font-weight: 800; line-height: 1.1;
+      letter-spacing: -1.5px; color: white;
+    }
+    .cover-title em { color: var(--accent); font-style: normal; }
+    .cover-subtitle { margin-top: 16px; font-size: 14pt; font-weight: 300; color: rgba(255,255,255,0.7); }
+    .cover-divider { width: 60px; height: 3px; background: var(--accent); margin: 24px auto; border-radius: 2px; }
+    .cover-product { font-size: 11pt; font-weight: 500; color: rgba(255,255,255,0.85); }
+    .cover-bottom {
+      position: relative; z-index: 1;
+      display: flex; justify-content: space-between; align-items: flex-end;
+    }
+    .cover-meta { font-size: 8.5pt; color: rgba(255,255,255,0.5); line-height: 1.8; }
+    .cover-meta strong { color: rgba(255,255,255,0.85); }
+    .cover-version {
+      font-size: 8pt; font-weight: 700; color: var(--accent);
+      letter-spacing: 1px; text-transform: uppercase;
+    }
+
+    /* ── SECTION HEADERS ── */
+    .section { padding: 40px 0 24px; }
+    .section-number { font-size: 8pt; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: var(--accent2); }
+    .section-title { font-size: 20pt; font-weight: 800; color: var(--brand); margin-top: 4px; letter-spacing: -0.5px; }
+    .section-divider { height: 2px; background: linear-gradient(to right, var(--brand), transparent); margin-top: 12px; border-radius: 2px; }
+
+    /* ── EXEC SUMMARY ── */
+    .exec-summary {
+      background: var(--gray-50); border-left: 4px solid var(--brand);
+      padding: 20px 24px; border-radius: 0 12px 12px 0; margin: 20px 0;
+    }
+    .exec-summary p { color: var(--gray-600); line-height: 1.8; }
+
+    /* ── CARDS ── */
+    .card-grid { display: grid; gap: 16px; margin: 20px 0; }
+    .card-grid-2 { grid-template-columns: 1fr 1fr; }
+    .card-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .card {
+      background: white; border: 1px solid var(--gray-200);
+      border-radius: 12px; padding: 20px; position: relative; overflow: hidden;
+    }
+    .card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0;
+      height: 3px; background: var(--brand);
+    }
+    .card.green::before  { background: var(--green); }
+    .card.blue::before   { background: var(--blue); }
+    .card.orange::before { background: var(--orange); }
+    .card.purple::before { background: var(--purple); }
+    .card-label { font-size: 8pt; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gray-400); margin-bottom: 4px; }
+    .card-value { font-size: 22pt; font-weight: 800; color: var(--brand); letter-spacing: -1px; }
+    .card-value.green  { color: var(--green); }
+    .card-value.blue   { color: var(--blue); }
+    .card-value.orange { color: var(--orange); }
+    .card-desc { font-size: 8.5pt; color: var(--gray-600); margin-top: 6px; line-height: 1.5; }
+
+    /* ── TABLES ── */
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 9pt; }
+    thead tr { background: var(--brand); color: white; }
+    thead th { padding: 10px 14px; text-align: left; font-weight: 600; letter-spacing: 0.3px; }
+    thead th:first-child { border-radius: 8px 0 0 0; }
+    thead th:last-child  { border-radius: 0 8px 0 0; }
+    tbody tr { border-bottom: 1px solid var(--gray-100); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:nth-child(even) { background: var(--gray-50); }
+    tbody td { padding: 9px 14px; color: var(--gray-600); }
+    tbody td strong { color: var(--gray-800); }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 8pt; font-weight: 600; }
+    .tag-green  { background: #dcfce7; color: #166534; }
+    .tag-blue   { background: #dbeafe; color: #1e40af; }
+    .tag-orange { background: #ffedd5; color: #9a3412; }
+    .tag-gray   { background: var(--gray-100); color: var(--gray-600); }
+    .tag-purple { background: #f3e8ff; color: #6b21a8; }
+
+    /* ── TECH DECISION ── */
+    .tech-decision {
+      background: #f0fdf4; border: 2px solid #86efac;
+      border-radius: 14px; padding: 20px 24px; margin: 20px 0;
+    }
+    .tech-decision h3 { font-size: 12pt; font-weight: 700; color: #15803d; margin-bottom: 10px; }
+    .tech-decision p { font-size: 9pt; color: var(--gray-600); line-height: 1.7; }
+
+    /* ── ARCHITECTURE ── */
+    .arch-layer { border: 1.5px solid var(--gray-200); border-radius: 10px; margin: 10px 0; overflow: hidden; }
+    .arch-layer-header { background: var(--brand); color: white; padding: 8px 16px; font-size: 9pt; font-weight: 600; letter-spacing: 0.5px; }
+    .arch-layer-body { padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .arch-chip {
+      background: var(--gray-100); border: 1px solid var(--gray-200);
+      border-radius: 6px; padding: 4px 12px; font-size: 8.5pt; font-weight: 500; color: var(--gray-600);
+    }
+    .arch-chip.highlight { background: #dcfce7; border-color: #86efac; color: #15803d; font-weight: 600; }
+
+    /* ── TECH EVAL ── */
+    .eval-intro {
+      background: var(--gray-50); border-left: 4px solid var(--blue);
+      padding: 14px 18px; border-radius: 0 10px 10px 0; margin: 16px 0;
+      font-size: 9pt; color: var(--gray-600); line-height: 1.7;
+    }
+
+    /* ── COST TABLE ── */
+    .cost-total {
+      background: var(--brand); color: white; border-radius: 12px;
+      padding: 20px 24px; display: flex; justify-content: space-between;
+      align-items: center; margin: 16px 0;
+    }
+    .cost-total-label { font-size: 12pt; font-weight: 600; }
+    .cost-total-label small { display: block; font-size: 8.5pt; font-weight: 300; opacity: 0.7; margin-top: 2px; }
+    .cost-total-value { font-size: 28pt; font-weight: 800; letter-spacing: -2px; }
+    .cost-total-value small { font-size: 12pt; font-weight: 400; opacity: 0.7; }
+
+    /* ── TIMELINE ── */
+    .timeline { margin: 20px 0; }
+    .tl-item { display: flex; gap: 16px; margin-bottom: 20px; }
+    .tl-left { display: flex; flex-direction: column; align-items: center; }
+    .tl-dot {
+      width: 36px; height: 36px; background: var(--brand); color: white;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 11pt; font-weight: 700; flex-shrink: 0;
+    }
+    .tl-line { flex: 1; width: 2px; background: var(--gray-200); margin: 4px 0; }
+    .tl-content { padding-bottom: 4px; }
+    .tl-title { font-size: 11pt; font-weight: 700; color: var(--brand); }
+    .tl-duration { display: inline-block; font-size: 8pt; font-weight: 600; background: #dbeafe; color: #1e40af; padding: 1px 8px; border-radius: 20px; margin-left: 8px; }
+    .tl-desc { font-size: 9pt; color: var(--gray-600); margin-top: 6px; line-height: 1.6; }
+    .tl-tasks { list-style: none; margin-top: 8px; }
+    .tl-tasks li { font-size: 8.5pt; color: var(--gray-600); padding: 2px 0; }
+    .tl-tasks li::before { content: '→ '; color: var(--accent2); font-weight: 700; }
+
+    /* ── FEATURES ── */
+    .feature-list { margin: 16px 0; }
+    .feature-item { display: flex; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--gray-100); }
+    .feature-item:last-child { border-bottom: none; }
+    .feature-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15pt; flex-shrink: 0; }
+    .feature-title { font-size: 10pt; font-weight: 700; color: var(--brand); }
+    .feature-desc { font-size: 9pt; color: var(--gray-600); margin-top: 3px; line-height: 1.5; }
+    .feature-badge { display: inline-block; font-size: 7.5pt; font-weight: 600; padding: 1px 8px; border-radius: 20px; margin-left: 8px; vertical-align: middle; }
+
+    /* ── HIGHLIGHT BOX ── */
+    .highlight-box {
+      background: linear-gradient(135deg, var(--brand) 0%, #2a4a46 100%);
+      color: white; border-radius: 14px; padding: 28px 30px; margin: 24px 0;
+    }
+    .highlight-box h3 { font-size: 16pt; font-weight: 800; margin-bottom: 10px; }
+    .highlight-box p { font-size: 10pt; color: rgba(255,255,255,0.8); line-height: 1.7; }
+    .highlight-box .accent { color: var(--accent); font-weight: 600; }
+
+    /* ── FOOTER ── */
+    .doc-footer {
+      border-top: 2px solid var(--gray-200); padding: 20px 0 0; margin-top: 40px;
+      display: flex; justify-content: space-between; align-items: center;
+      color: var(--gray-400); font-size: 8pt;
+    }
+    .doc-footer strong { color: var(--gray-600); }
+
+    /* ── PRINT BUTTON ── */
+    .print-btn {
+      position: fixed; bottom: 30px; right: 30px;
+      background: var(--brand); color: white; border: none;
+      padding: 14px 22px; border-radius: 12px; font-size: 11pt; font-weight: 600;
+      cursor: pointer; box-shadow: 0 8px 24px rgba(29,43,41,0.4);
+      z-index: 100; font-family: 'Inter', sans-serif;
+      display: flex; align-items: center; gap: 8px; transition: all 0.2s;
+    }
+    .print-btn:hover { background: var(--brand-mid); transform: translateY(-2px); }
+    @media print { .print-btn { display: none; } }
+
+    /* ── UTILITIES ── */
+    p { margin-bottom: 10px; color: var(--gray-600); line-height: 1.7; }
+    h4 { font-size: 11pt; font-weight: 700; color: var(--brand); margin: 16px 0 8px; }
+    .note {
+      background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b;
+      border-radius: 0 8px 8px 0; padding: 10px 14px;
+      font-size: 9pt; color: #92400e; margin: 12px 0;
+    }
+    .note strong { color: #78350f; }
+  </style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">🖨️ Guardar como PDF</button>
+
+<!-- ══ PORTADA ══ -->
+<div class="cover">
+  <div class="cover-top">
+    <div class="cover-logo"><span>⚙</span> TOWA</div>
+    <div class="cover-badge">Propuesta Técnica Confidencial</div>
+  </div>
+  <div class="cover-center">
+    <div class="cover-title">Infraestructura<br/><em>TechManager</em></div>
+    <div class="cover-divider"></div>
+    <div class="cover-subtitle">Arquitectura · Tecnología · Costos · Plan de Implementación</div>
+    <div class="cover-product" style="margin-top: 28px;">
+      Plataforma de Gestión de Servicios de Campo<br/>
+      <span style="opacity:.6; font-size:9pt;">Multi-país · Tiempo real · Geolocalización</span>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div class="cover-meta">
+      <strong>Preparado para:</strong> Towa<br/>
+      <strong>Fecha:</strong> Junio 2026<br/>
+      <strong>Escenario:</strong> Despliegue a Gran Escala
+    </div>
+    <div class="cover-version">V 2.0 — 2026</div>
+  </div>
+</div>
+
+<!-- ══ BODY ══ -->
+<div class="page">
+
+  <!-- ── 1. Resumen Ejecutivo ── -->
+  <div class="section">
+    <div class="section-number">01</div>
+    <div class="section-title">Resumen Ejecutivo</div>
+    <div class="section-divider"></div>
+  </div>
+
+  <div class="exec-summary">
+    <p>
+      <strong>TechManager</strong> es la plataforma de gestión de campo de Towa: centraliza visitas técnicas, inventario de hardware y supervisión de equipos en múltiples países de América Latina. Este documento define la arquitectura tecnológica seleccionada para implementar el sistema a escala, con énfasis en robustez, costo predecible y capacidades avanzadas de geolocalización y analítica.
+    </p>
+    <p style="margin-bottom:0;">
+      La arquitectura se basa en <strong>Supabase</strong> como backend principal (base de datos relacional, autenticación, almacenamiento y lógica de negocio) y <strong>Firebase Hosting</strong> para la distribución del frontend, combinando lo mejor de cada plataforma para el perfil de carga específico del proyecto.
+    </p>
+  </div>
+
+  <div class="card-grid card-grid-3">
+    <div class="card green">
+      <div class="card-label">Costo vs. alternativas del mercado</div>
+      <div class="card-value green">~45%</div>
+      <div class="card-desc">Menos costoso que soluciones equivalentes gracias a la arquitectura seleccionada</div>
+    </div>
+    <div class="card blue">
+      <div class="card-label">Costo mensual estimado</div>
+      <div class="card-value blue">$26–48</div>
+      <div class="card-desc">USD/mes para 100+ técnicos y 1.000+ visitas/mes con almacenamiento incluido</div>
+    </div>
+    <div class="card orange">
+      <div class="card-label">Tiempo de implementación</div>
+      <div class="card-value orange">3–4</div>
+      <div class="card-desc">Semanas desde el inicio hasta despliegue completo en producción</div>
+    </div>
+  </div>
+
+  <!-- ── 2. El Proyecto ── -->
+  <div class="section page-break">
+    <div class="section-number">02</div>
+    <div class="section-title">El Proyecto — TechManager</div>
+    <div class="section-divider"></div>
+  </div>
+
+  <p>TechManager es una aplicación web (SPA) construida con React 19 + TypeScript 5.8 + Vite 6, accesible desde cualquier dispositivo. Cubre el ciclo completo de operación técnica de campo:</p>
+
+  <div class="feature-list">
+    <div class="feature-item">
+      <div class="feature-icon" style="background:#dbeafe;">🏪</div>
+      <div>
+        <div class="feature-title">Directorio de Tiendas <span class="feature-badge tag-blue">Multi-país</span></div>
+        <div class="feature-desc">Gestión del catálogo de locales con estado, dirección, coordenadas GPS y correos de contacto. Importación/exportación CSV masiva con validación.</div>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon" style="background:#dcfce7;">📋</div>
+      <div>
+        <div class="feature-title">Gestión de Visitas Técnicas <span class="feature-badge tag-green">Workflow completo</span></div>
+        <div class="feature-desc">Flujo Pendiente → En Curso → Completada. Asignación por coordinador y auto-asignación por técnico. Formulario de ejecución con actividades, evidencias fotográficas y exportación PDF.</div>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon" style="background:#f3e8ff;">🖥️</div>
+      <div>
+        <div class="feature-title">Inventario de Hardware <span class="feature-badge tag-purple">Por tienda</span></div>
+        <div class="feature-desc">Registro de activos tecnológicos por local: estado físico y operativo, categoría (red, cómputo, impresión, POS, energía), número de serie, marca y modelo.</div>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon" style="background:#fff7ed;">👥</div>
+      <div>
+        <div class="feature-title">Gestión de Personal <span class="feature-badge tag-orange">3 niveles de rol</span></div>
+        <div class="feature-desc">Directorio de técnicos, coordinadores y administradores con jerarquía supervisor–empleado, cargo, país asignado y datos de contacto internacional.</div>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon" style="background:#f0fdf4;">📊</div>
+      <div>
+        <div class="feature-title">Dashboard de Métricas <span class="feature-badge tag-green">Tiempo real</span></div>
+        <div class="feature-desc">KPIs ejecutivos: tiendas activas, visitas por estado, tiempo promedio de gestión, técnicos activos y visitas en curso. Gráficas de distribución por país.</div>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon" style="background:#fef9c3;">📍</div>
+      <div>
+        <div class="feature-title">Módulo de Ruta y Geolocalización <span class="feature-badge" style="background:#fef08a;color:#854d0e;">Nuevo</span></div>
+        <div class="feature-desc">Registro GPS del recorrido del técnico: punto de partida + paradas intermedias + llegada a tienda con timestamp. Validación de presencia en sitio (radio 100 m con PostGIS) antes de iniciar la inspección.</div>
+      </div>
+    </div>
+    <div class="feature-item" style="border-bottom:none;">
+      <div class="feature-icon" style="background:#ede9fe;">⏱️</div>
+      <div>
+        <div class="feature-title">Gestión de Horas Laborales <span class="feature-badge" style="background:#fef08a;color:#854d0e;">Nuevo</span></div>
+        <div class="feature-desc">Registro y análisis de horas trabajadas por técnico, distribuidas por tienda y tipo de visita. Queries SQL nativas con GROUP BY + SUM. Base para nómina, productividad y planificación de capacidad.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 3. Arquitectura ── -->
+  <div class="section page-break">
+    <div class="section-number">03</div>
+    <div class="section-title">Arquitectura del Sistema</div>
+    <div class="section-divider"></div>
+  </div>
+
+  <p>La arquitectura combina dos servicios cloud complementarios, cada uno elegido por su ventaja específica para los requerimientos del proyecto:</p>
+
+  <div class="tech-decision">
+    <h3>🟢 Arquitectura seleccionada: Supabase + Firebase Hosting</h3>
+    <p>
+      <strong>Supabase</strong> actúa como backend principal: PostgreSQL 15 con PostGIS nativo para geolocalización, Auth con Google OAuth, Storage para imágenes de evidencia y Edge Functions para lógica serverless y correos transaccionales. <strong>Firebase Hosting</strong> sirve el bundle estático del frontend (React SPA ~3–5 MB) sobre la CDN global de Google, con deploys automáticos en segundos y SSL incluido — sin costo adicional para este volumen.
+    </p>
+  </div>
+
+  <div class="arch-layer">
+    <div class="arch-layer-header">🌐 CAPA DE PRESENTACIÓN — Firebase Hosting (Google)</div>
+    <div class="arch-layer-body">
+      <span class="arch-chip highlight">React 19 + TypeScript 5.8</span>
+      <span class="arch-chip">Vite 6 (bundle optimizado)</span>
+      <span class="arch-chip">Tailwind CSS v4</span>
+      <span class="arch-chip highlight">CDN Global de Google</span>
+      <span class="arch-chip">SSL automático</span>
+      <span class="arch-chip">Dominio personalizado</span>
+      <span class="arch-chip">Deploy CI/CD automático</span>
+      <span class="arch-chip">Plan Spark — $0/mes</span>
+    </div>
+  </div>
+
+  <div class="arch-layer">
+    <div class="arch-layer-header">🔐 AUTENTICACIÓN — Supabase Auth</div>
+    <div class="arch-layer-body">
+      <span class="arch-chip highlight">Google OAuth 2.0</span>
+      <span class="arch-chip">JWT con claims de rol (admin / coordinador / técnico)</span>
+      <span class="arch-chip">Row Level Security (RLS)</span>
+      <span class="arch-chip">Sesiones gestionadas automáticamente</span>
+      <span class="arch-chip">50K MAU incluidos en plan Pro</span>
+    </div>
+  </div>
+
+  <div class="arch-layer">
+    <div class="arch-layer-header">🗄️ BASE DE DATOS — Supabase / PostgreSQL 15 + PostGIS</div>
+    <div class="arch-layer-body">
+      <span class="arch-chip highlight">PostgreSQL 15</span>
+      <span class="arch-chip highlight">Extensión PostGIS (geolocalización nativa)</span>
+      <span class="arch-chip">Tablas: users, tiendas, inventario, visitas, rutas_visita</span>
+      <span class="arch-chip">Foreign Keys — integridad referencial garantizada</span>
+      <span class="arch-chip">Índices geoespaciales (GIST)</span>
+      <span class="arch-chip">Backups diarios automáticos</span>
+      <span class="arch-chip">Point-in-time recovery</span>
+      <span class="arch-chip">8 GB DB incluidos en plan Pro</span>
+    </div>
+  </div>
+
+  <div class="arch-layer">
+    <div class="arch-layer-header">🖼️ ALMACENAMIENTO — Supabase Storage</div>
+    <div class="arch-layer-body">
+      <span class="arch-chip highlight">Imágenes de evidencia fotográfica (visitas)</span>
+      <span class="arch-chip">Bucket privado: evidencias-visitas</span>
+      <span class="arch-chip">Bucket público: logos-tiendas</span>
+      <span class="arch-chip">URLs firmadas para acceso seguro</span>
+      <span class="arch-chip">Políticas de acceso por rol/bucket</span>
+      <span class="arch-chip">100 GB incluidos en plan Pro</span>
+    </div>
+  </div>
+
+  <div class="arch-layer">
+    <div class="arch-layer-header">⚡ LÓGICA DE NEGOCIO — Supabase Edge Functions (Deno)</div>
+    <div class="arch-layer-body">
+      <span class="arch-chip highlight">Correos transaccionales (visita asignada, completada, alerta)</span>
+      <span class="arch-chip highlight">Integración con Resend / SendGrid</span>
+      <span class="arch-chip">Funciones serverless en el edge</span>
+      <span class="arch-chip">500K invocaciones/mes incluidas</span>
+    </div>
+  </div>
+
+  <div class="arch-layer">
+    <div class="arch-layer-header">🔄 TIEMPO REAL — Supabase Realtime</div>
+    <div class="arch-layer-body">
+      <span class="arch-chip highlight">Dashboard con actualizaciones en vivo</span>
+      <span class="arch-chip">Cambios de estado de visitas en tiempo real</span>
+      <span class="arch-chip">WebSockets gestionados por Supabase</span>
+      <span class="arch-chip">Canales por tabla y fila</span>
+    </div>
+  </div>
+
+  <!-- ── 4. Evaluación Tecnológica ── -->
+  <div class="section page-break">
+    <div class="section-number">04</div>
+    <div class="section-title">Evaluación Tecnológica</div>
+    <div class="section-divider"></div>
+  </div>
+
+  <div class="eval-intro">
+    Durante la fase de diseño se evaluaron múltiples opciones de backend. A continuación se documenta la comparativa entre las dos principales candidatas y el fundamento de la decisión tomada.
+  </div>
+
+  <h4>Comparativa por requerimiento crítico</h4>
+  <table>
+    <thead>
+      <tr>
+        <th>Requerimiento</th>
+        <th>🔶 Alternativa evaluada: Firestore (NoSQL)</th>
+        <th>🟢 Seleccionado: Supabase (PostgreSQL)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Validación GPS 100m</strong></td>
+        <td><span class="tag tag-orange">Workaround con geohashes (~200 líneas, aproximado)</span></td>
+        <td><span class="tag tag-green">ST_DWithin() nativo — 1 línea SQL exacta</span></td>
+      </tr>
+      <tr>
+        <td><strong>Flujo de ruta con checkpoints GPS</strong></td>
+        <td><span class="tag tag-orange">Array de objetos en documento — sin índices geoespaciales</span></td>
+        <td><span class="tag tag-green">Tabla con tipo GEOGRAPHY + índices GIST nativos</span></td>
+      </tr>
+      <tr>
+        <td><strong>Horas laborales / analítica agregada</strong></td>
+        <td><span class="tag tag-orange">N lecturas + cálculo en cliente (costoso y lento)</span></td>
+        <td><span class="tag tag-green">GROUP BY + SUM(fecha_fin - fecha_inicio) en SQL</span></td>
+      </tr>
+      <tr>
+        <td><strong>Tiempo de gestión promedio</strong></td>
+        <td><span class="tag tag-orange">Leer todos los documentos, calcular en memoria</span></td>
+        <td><span class="tag tag-green">AVG(salida - entrada) — 1 query de agregación</span></td>
+      </tr>
+      <tr>
+        <td><strong>Email transaccional</strong></td>
+        <td><span class="tag tag-orange">Cloud Functions + proveedor SMTP externo (costo adicional)</span></td>
+        <td><span class="tag tag-green">Edge Functions + Resend integrado (incluido en plan)</span></td>
+      </tr>
+      <tr>
+        <td><strong>Integridad referencial</strong></td>
+        <td><span class="tag tag-gray">Sin FK — IDs como strings sin validación</span></td>
+        <td><span class="tag tag-green">Foreign keys + constraints SQL — datos huérfanos imposibles</span></td>
+      </tr>
+      <tr>
+        <td><strong>Almacenamiento de imágenes</strong></td>
+        <td><span class="tag tag-orange">$0.026/GB — sin límite incluido en plan base</span></td>
+        <td><span class="tag tag-green">$0.021/GB · 100 GB incluidos en plan Pro</span></td>
+      </tr>
+      <tr>
+        <td><strong>Backups y recuperación</strong></td>
+        <td><span class="tag tag-gray">Export manual periódico</span></td>
+        <td><span class="tag tag-green">Backups diarios + point-in-time recovery automático</span></td>
+      </tr>
+      <tr>
+        <td><strong>Costo a gran escala</strong></td>
+        <td><span class="tag tag-orange">$80–150/mes (variable por lecturas — impredecible)</span></td>
+        <td><span class="tag tag-green">$26–48/mes (precio plano mensual predecible)</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>Conclusión:</strong> Los tres módulos de mayor valor diferencial para Towa (GPS 100m, rutas y horas laborales) son fundamentalmente relacionales y geoespaciales. PostgreSQL + PostGIS los resuelve de forma nativa y eficiente; una base NoSQL requeriría workarounds complejos con mayor latencia, mayor costo operativo y menor precisión.
+  </div>
+
+  <!-- ── 5. Estructura de costos ── -->
+  <div class="section page-break">
+    <div class="section-number">05</div>
+    <div class="section-title">Estructura de Costos — Gran Escala</div>
+    <div class="section-divider"></div>
+  </div>
+
+  <p>El escenario de gran escala contempla <strong>100+ técnicos activos</strong>, <strong>1.000+ visitas por mes</strong>, ~10 fotos de evidencia por visita (promedio 4 MB c/u) y envío de ~300 correos transaccionales por mes.</p>
+
+  <h4>Desglose mensual</h4>
+  <table>
+    <thead>
+      <tr>
+        <th>Servicio</th>
+        <th>Proveedor</th>
+        <th>Plan</th>
+        <th>Incluye</th>
+        <th>Costo/mes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>DB + Auth + Realtime + Edge Functions</strong></td>
+        <td>Supabase</td>
+        <td>Pro</td>
+        <td>8 GB DB, 50K MAU, backups diarios, RLS, 500K invocaciones/mes</td>
+        <td><strong>$25</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Almacenamiento de imágenes</strong></td>
+        <td>Supabase Storage</td>
+        <td>Pro (incluido)</td>
+        <td>100 GB/mes incluidos. Año 1 estimado: 40–60 GB</td>
+        <td><strong>$0 – $2</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Bandwidth / transferencia</strong></td>
+        <td>Supabase</td>
+        <td>Pro (incluido)</td>
+        <td>250 GB/mes incluidos. Estimado de uso: 50–80 GB/mes</td>
+        <td><strong>$0</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Hosting Frontend (React SPA)</strong></td>
+        <td>Firebase Hosting</td>
+        <td>Spark (Free)</td>
+        <td>10 GB storage, 360 MB/día bandwidth, CDN global Google, SSL</td>
+        <td><strong>$0</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Correos transaccionales</strong></td>
+        <td>Resend</td>
+        <td>Free / Pro</td>
+        <td>3.000 emails/mes gratis. Pro: 50K/mes por $20</td>
+        <td><strong>$0 – $20</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Dominio personalizado</strong></td>
+        <td>Namecheap / GoDaddy</td>
+        <td>—</td>
+        <td>Dominio .com para la aplicación</td>
+        <td><strong>~$1</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="cost-total">
+    <div>
+      <div class="cost-total-label">
+        Costo Total Mensual Estimado
+        <small>Gran escala · 100+ técnicos · 1.000+ visitas/mes</small>
+      </div>
+    </div>
+    <div class="cost-total-value">$26–48 <small>USD/mes</small></div>
+  </div>
+
+  <h4>Proyección de costos a 3 años</h4>
+  <table>
+    <thead>
+      <tr>
+        <th>Período</th>
+        <th>Supabase + Firebase Hosting</th>
+        <th>Alternativa NoSQL equivalente</th>
+        <th>Diferencia</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Mes 1–6 (implementación)</td>
+        <td><strong>$26/mes</strong></td>
+        <td>$80–100/mes</td>
+        <td><span class="tag tag-green">Ahorro ~$300–440</span></td>
+      </tr>
+      <tr>
+        <td>Mes 7–12 (operación plena)</td>
+        <td><strong>$35–48/mes</strong></td>
+        <td>$100–150/mes</td>
+        <td><span class="tag tag-green">Ahorro ~$600–900</span></td>
+      </tr>
+      <tr>
+        <td>Año 2 (crecimiento)</td>
+        <td><strong>$45–60/mes</strong></td>
+        <td>$130–200/mes</td>
+        <td><span class="tag tag-green">Ahorro ~$1.000–1.600</span></td>
+      </tr>
+      <tr>
+        <td>Año 3 (escala máxima)</td>
+        <td><strong>$55–75/mes</strong></td>
+        <td>$150–250/mes</td>
+        <td><span class="tag tag-green">Ahorro ~$1.140–2.100</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ── 6. Backlog de Funcionalidades ── -->
+  <div class="section page-break">
+    <div class="section-number">06</div>
+    <div class="section-title">Backlog de Funcionalidades</div>
+    <div class="section-divider"></div>
+  </div>
+
+  <p>Roadmap de desarrollo de TechManager organizado por prioridad de entrega:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Módulo</th>
+        <th>Funcionalidad</th>
+        <th>Prioridad</th>
+        <th>Dependencia técnica</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Tiendas</strong></td>
+        <td>Correos de contacto (array) y coordenadas GPS por tienda</td>
+        <td><span class="tag tag-orange">Alta</span></td>
+        <td><span class="tag tag-green">PostGIS GEOGRAPHY</span></td>
+      </tr>
+      <tr>
+        <td><strong>Formulario de Visita</strong></td>
+        <td>Registro de fecha/hora de entrada y salida exactas</td>
+        <td><span class="tag tag-orange">Alta</span></td>
+        <td><span class="tag tag-gray">TIMESTAMPTZ nativo</span></td>
+      </tr>
+      <tr>
+        <td><strong>Restricción Geográfica</strong></td>
+        <td>Bloquear inicio si técnico está a más de 100m de la tienda</td>
+        <td><span class="tag tag-orange">Alta</span></td>
+        <td><span class="tag tag-green">ST_DWithin (PostGIS)</span></td>
+      </tr>
+      <tr>
+        <td><strong>Mis Visitas</strong></td>
+        <td>Filtro por país del técnico + auto-asignación de visitas disponibles</td>
+        <td><span class="tag tag-orange">Alta</span></td>
+        <td><span class="tag tag-gray">RLS por país</span></td>
+      </tr>
+      <tr>
+        <td><strong>Dashboard</strong></td>
+        <td>KPIs reorganizados + tiempo promedio de gestión</td>
+        <td><span class="tag tag-blue">Media</span></td>
+        <td><span class="tag tag-green">AVG() SQL</span></td>
+      </tr>
+      <tr>
+        <td><strong>Personal</strong></td>
+        <td>Campo "cargo" para puesto organizacional del técnico</td>
+        <td><span class="tag tag-blue">Media</span></td>
+        <td><span class="tag tag-gray">Columna TEXT</span></td>
+      </tr>
+      <tr>
+        <td><strong>Flujo de Ruta</strong></td>
+        <td>Tracking GPS con checkpoints: Inicio → Punto Medio → Llegada a tienda</td>
+        <td><span class="tag tag-blue">Media</span></td>
+        <td><span class="tag tag-green">Tabla rutas_visita + PostGIS</span></td>
+      </tr>
+      <tr>
+        <td><strong>Horas Laborales</strong></td>
+        <td>Módulo de análisis de horas por técnico distribuidas por tienda y tipo</td>
+        <td><span class="tag tag-blue">Media</span></td>
+        <td><span class="tag tag-green">GROUP BY + SUM() SQL</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ── 7. Plan de Implementación ── -->
+  <div class="section page-break">
+    <div class="section-number">07</div>
+    <div class="section-title">Plan de Implementación</div>
+    <div class="section-divider"></div>
+  </div>
+
+  <p>La implementación de TechManager se estructura en 4 fases secuenciales con posibilidad de paralelización en etapas independientes:</p>
+
+  <div class="timeline">
+
+    <div class="tl-item">
+      <div class="tl-left"><div class="tl-dot">1</div><div class="tl-line"></div></div>
+      <div class="tl-content">
+        <div class="tl-title">Diseño del Schema SQL y Configuración Base <span class="tl-duration">3–4 días</span></div>
+        <div class="tl-desc">Creación del esquema relacional en Supabase con todas las tablas del sistema. Configuración de Row Level Security (RLS) para control de acceso por rol. Habilitación de PostGIS para capacidades geoespaciales.</div>
+        <ul class="tl-tasks">
+          <li>Tablas: users, tiendas, inventario, visitas, reportes_actividades, rutas_visita</li>
+          <li>Extensión PostGIS habilitada — tipos GEOGRAPHY para coordenadas</li>
+          <li>Políticas RLS por rol: administrador, coordinador, técnico</li>
+          <li>Columnas: correos_tienda (ARRAY), coordenadas (GEOGRAPHY), cargo, fecha_hora_entrada/salida</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-left"><div class="tl-dot">2</div><div class="tl-line"></div></div>
+      <div class="tl-content">
+        <div class="tl-title">Autenticación y Capa de Datos <span class="tl-duration">4–5 días</span></div>
+        <div class="tl-desc">Configuración de Google OAuth en Supabase Auth. Implementación del cliente Supabase en la aplicación y conexión de todos los módulos a la base de datos.</div>
+        <ul class="tl-tasks">
+          <li>Configurar proveedor Google OAuth en Supabase Dashboard</li>
+          <li>Crear cliente supabase.ts — SDK @supabase/supabase-js</li>
+          <li>Conectar módulos: Tiendas, Visitas, Personal, Inventario, Dashboard</li>
+          <li>Firebase Hosting permanece como capa de distribución del frontend</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-left"><div class="tl-dot">3</div><div class="tl-line"></div></div>
+      <div class="tl-content">
+        <div class="tl-title">Storage y Correo Electrónico <span class="tl-duration">2–3 días</span></div>
+        <div class="tl-desc">Configuración de Supabase Storage para imágenes de evidencia. Implementación de Edge Functions para notificaciones en los eventos clave del workflow de visitas.</div>
+        <ul class="tl-tasks">
+          <li>Bucket privado: evidencias-visitas (acceso via URL firmada por 1 hora)</li>
+          <li>Bucket público: logos-tiendas</li>
+          <li>Edge Function: notify-visita (disparo en INSERT/UPDATE sobre tabla visitas)</li>
+          <li>Integración Resend — plantillas HTML responsivas para correos transaccionales</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-left"><div class="tl-dot">4</div></div>
+      <div class="tl-content">
+        <div class="tl-title">Módulos Avanzados y Despliegue <span class="tl-duration">5–7 días</span></div>
+        <div class="tl-desc">Implementación de las capacidades diferenciadoras del sistema que aprovechan PostGIS y las capacidades analíticas de PostgreSQL.</div>
+        <ul class="tl-tasks">
+          <li>Restricción GPS 100m: ST_DWithin() al abrir formulario de visita</li>
+          <li>Módulo Flujo de Ruta: tabla rutas_visita con checkpoints GPS + timestamps</li>
+          <li>Módulo Horas Laborales: queries de agrupación por técnico, tienda y tipo</li>
+          <li>Dashboard: AVG(fecha_fin - fecha_inicio) para tiempo promedio de gestión</li>
+          <li>QA, pruebas de carga y despliegue final en Firebase Hosting</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="card-grid card-grid-3" style="margin-top:20px;">
+    <div class="card blue">
+      <div class="card-label">Duración total</div>
+      <div class="card-value blue" style="font-size:18pt;">3–4 sem.</div>
+      <div class="card-desc">Desde configuración inicial hasta producción</div>
+    </div>
+    <div class="card green">
+      <div class="card-label">Riesgo operativo</div>
+      <div class="card-value green" style="font-size:18pt;">Bajo</div>
+      <div class="card-desc">Arquitectura probada en producción por miles de proyectos</div>
+    </div>
+    <div class="card orange">
+      <div class="card-label">Portabilidad</div>
+      <div class="card-value orange" style="font-size:18pt;">Alta</div>
+      <div class="card-desc">Supabase es open-source. PostgreSQL estándar — sin vendor lock-in total</div>
+    </div>
+  </div>
+
+  <!-- ── 8. Conclusión ── -->
+  <div class="section page-break">
+    <div class="section-number">08</div>
+    <div class="section-title">Conclusión y Beneficios para Towa</div>
+    <div class="section-divider"></div>
+  </div>
+
+  <div class="highlight-box">
+    <h3>Arquitectura seleccionada: Supabase + Firebase Hosting</h3>
+    <p>
+      La combinación <span class="accent">Supabase (DB + Auth + Storage + Edge Functions) + Firebase Hosting (CDN frontend)</span> es la arquitectura óptima para TechManager. Resuelve de forma nativa los tres requerimientos técnicos más críticos —<span class="accent">validación GPS de 100 metros, tracking de rutas y analítica de horas laborales</span>— con herramientas nativas de PostgreSQL que no requieren workarounds ni procesamiento adicional en el cliente.
+    </p>
+    <p style="margin-top:10px;">
+      El costo en escenario de gran escala se sitúa entre <span class="accent">$26–$48 USD/mes</span>, representando un ahorro de <span class="accent">más de $2.000 USD acumulados en 3 años</span> frente a soluciones NoSQL equivalentes, con mayor robustez, integridad referencial y capacidades analíticas empresariales incluidas.
+    </p>
+  </div>
+
+  <h4>Beneficios clave para Towa</h4>
+  <table>
+    <thead>
+      <tr><th>Dimensión</th><th>Beneficio concreto</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Costos</strong></td>
+        <td>Precio plano predecible. Sin sorpresas por picos de tráfico o volumen de lecturas</td>
+      </tr>
+      <tr>
+        <td><strong>Geolocalización</strong></td>
+        <td>Validación de presencia en tienda al 100% — PostGIS calcula el radio con precisión métrica</td>
+      </tr>
+      <tr>
+        <td><strong>Analítica operacional</strong></td>
+        <td>Informes de productividad y horas laborales en tiempo real, sin carga en el dispositivo del usuario</td>
+      </tr>
+      <tr>
+        <td><strong>Integridad de datos</strong></td>
+        <td>Base relacional con claves foráneas: elimina datos huérfanos e inconsistencias</td>
+      </tr>
+      <tr>
+        <td><strong>Comunicaciones</strong></td>
+        <td>Notificaciones automáticas por correo integradas, sin dependencias externas complejas</td>
+      </tr>
+      <tr>
+        <td><strong>Escalabilidad</strong></td>
+        <td>PostgreSQL soporta millones de registros con rendimiento óptimo vía índices B-tree y GIST</td>
+      </tr>
+      <tr>
+        <td><strong>Seguridad</strong></td>
+        <td>Row Level Security garantiza que cada rol solo lee y escribe lo que le corresponde</td>
+      </tr>
+      <tr>
+        <td><strong>Recuperación ante fallos</strong></td>
+        <td>Backups diarios automáticos y point-in-time recovery incluidos en el plan Pro</td>
+      </tr>
+      <tr>
+        <td><strong>Sin vendor lock-in total</strong></td>
+        <td>Supabase es open-source. La base de datos es PostgreSQL estándar — portable a cualquier nube</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- FOOTER -->
+  <div class="doc-footer">
+    <div>
+      <strong>Towa — TechManager</strong><br/>
+      Propuesta de Infraestructura Tecnológica · Confidencial
+    </div>
+    <div style="text-align:right;">
+      Junio 2026 · v2.0<br/>
+      <span style="color:#9ca3af;">Preparado por el equipo de desarrollo TechManager</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

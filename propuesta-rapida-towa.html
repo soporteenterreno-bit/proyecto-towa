@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TechManager · Propuesta — Towa</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+    :root {
+      --brand:  #1d2b29;
+      --mid:    #2a3e3b;
+      --accent: #4ade80;
+      --g50:    #f9fafb;
+      --g100:   #f3f4f6;
+      --g200:   #e5e7eb;
+      --g500:   #6b7280;
+      --g800:   #1f2937;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #fff;
+      color: var(--g800);
+      line-height: 1.5;
+    }
+
+    @media print {
+      body { font-size: 9.5pt; }
+      .no-print { display: none !important; }
+    }
+
+    .print-btn {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--brand); color: white;
+      border: none; padding: 12px 20px; border-radius: 10px;
+      font-size: 10pt; font-weight: 600; cursor: pointer;
+      box-shadow: 0 6px 20px rgba(29,43,41,0.45);
+      font-family: 'Inter', sans-serif; z-index: 99;
+      transition: all .15s;
+    }
+    .print-btn:hover { background: var(--mid); }
+
+    /* ── PORTADA / HERO ── */
+    .hero {
+      background: linear-gradient(145deg, var(--brand) 0%, var(--mid) 65%, #1a3330 100%);
+      color: white;
+      padding: 56px 56px 48px;
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; top: -100px; right: -100px;
+      width: 500px; height: 500px; border-radius: 50%;
+      background: rgba(74,222,128,.06);
+    }
+    .hero::after {
+      content: '';
+      position: absolute; bottom: -80px; left: -60px;
+      width: 340px; height: 340px; border-radius: 50%;
+      background: rgba(74,222,128,.04);
+    }
+    .hero-inner {
+      position: relative; z-index: 1;
+      max-width: 860px; margin: 0 auto;
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 40px;
+    }
+    .hero-text { flex: 1; }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(74,222,128,.18); border: 1px solid rgba(74,222,128,.35);
+      color: var(--accent); font-size: 8pt; font-weight: 700;
+      letter-spacing: 2px; text-transform: uppercase;
+      padding: 4px 14px; border-radius: 20px; margin-bottom: 18px;
+    }
+    .hero-title {
+      font-size: 36pt; font-weight: 900; letter-spacing: -2px;
+      line-height: 1.0; color: white;
+    }
+    .hero-title em { color: var(--accent); font-style: normal; }
+    .hero-sub {
+      margin-top: 14px; font-size: 12pt; font-weight: 300;
+      color: rgba(255,255,255,.7); line-height: 1.6;
+      max-width: 480px;
+    }
+    .hero-right {
+      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+      border-radius: 16px; padding: 22px 26px;
+      display: flex; flex-direction: column; gap: 14px;
+      flex-shrink: 0; min-width: 200px;
+    }
+    .hero-stat { text-align: center; }
+    .hero-stat .num { font-size: 24pt; font-weight: 800; color: var(--accent); letter-spacing: -1px; }
+    .hero-stat .lbl { font-size: 8pt; color: rgba(255,255,255,.6); line-height: 1.4; margin-top: 2px; }
+    .hero-divider { height: 1px; background: rgba(255,255,255,.1); }
+
+    /* ── BODY ── */
+    .body { max-width: 960px; margin: 0 auto; padding: 44px 56px 56px; }
+
+    .section-label {
+      font-size: 8pt; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--accent);
+      border-left: 3px solid var(--accent); padding-left: 10px;
+      margin-bottom: 18px; margin-top: 40px;
+    }
+
+    /* ── PROBLEMA / SOLUCIÓN ── */
+    .ps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 8px; }
+    .ps-card {
+      border-radius: 14px; padding: 22px 24px;
+    }
+    .ps-card.problem { background: #fef2f2; border: 1.5px solid #fecaca; }
+    .ps-card.solution { background: #f0fdf4; border: 1.5px solid #86efac; }
+    .ps-card h3 {
+      font-size: 10pt; font-weight: 700; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .ps-card.problem h3 { color: #b91c1c; }
+    .ps-card.solution h3 { color: #15803d; }
+    .ps-card ul { list-style: none; }
+    .ps-card li { font-size: 9pt; color: var(--g500); padding: 4px 0; display: flex; align-items: flex-start; gap: 7px; }
+    .ps-card.problem li::before { content: '✗'; color: #ef4444; font-weight: 700; flex-shrink: 0; }
+    .ps-card.solution li::before { content: '✓'; color: #22c55e; font-weight: 700; flex-shrink: 0; }
+
+    /* ── FEATURES ── */
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .feat {
+      background: var(--g50); border: 1.5px solid var(--g200);
+      border-radius: 12px; padding: 18px 18px;
+    }
+    .feat-icon { font-size: 22pt; margin-bottom: 8px; }
+    .feat-title { font-size: 10pt; font-weight: 700; color: var(--brand); margin-bottom: 4px; }
+    .feat-desc { font-size: 8.5pt; color: var(--g500); line-height: 1.5; }
+    .feat-new {
+      display: inline-block; margin-top: 6px;
+      background: #fef9c3; color: #854d0e;
+      font-size: 7pt; font-weight: 700; padding: 1px 7px; border-radius: 20px;
+    }
+
+    /* ── HOW IT WORKS ── */
+    .how {
+      background: var(--g50); border: 1.5px solid var(--g200);
+      border-radius: 14px; padding: 24px 28px; margin-bottom: 8px;
+    }
+    .how-flow {
+      display: flex; align-items: center; gap: 0; margin-top: 8px;
+    }
+    .how-step {
+      flex: 1; text-align: center; padding: 16px 12px;
+      background: white; border: 1.5px solid var(--g200); border-radius: 12px;
+    }
+    .how-step .s-icon { font-size: 20pt; display: block; margin-bottom: 6px; }
+    .how-step .s-title { font-size: 9pt; font-weight: 700; color: var(--brand); }
+    .how-step .s-desc { font-size: 8pt; color: var(--g500); margin-top: 3px; line-height: 1.4; }
+    .how-arrow { font-size: 16pt; color: var(--g200); padding: 0 8px; flex-shrink: 0; }
+
+    /* ── COST ── */
+    .cost-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+    .cost-card {
+      border-radius: 14px; padding: 20px 22px; text-align: center;
+    }
+    .cost-card.main { background: var(--brand); color: white; }
+    .cost-card.save { background: #f0fdf4; border: 1.5px solid #86efac; }
+    .cost-card.time { background: #eff6ff; border: 1.5px solid #93c5fd; }
+    .cost-card .c-icon { font-size: 22pt; margin-bottom: 8px; }
+    .cost-card .c-num { font-size: 26pt; font-weight: 800; letter-spacing: -1.5px; line-height: 1.1; }
+    .cost-card.main .c-num { color: var(--accent); }
+    .cost-card.save .c-num { color: #15803d; }
+    .cost-card.time .c-num { color: #1d4ed8; }
+    .cost-card .c-label { font-size: 8.5pt; margin-top: 4px; line-height: 1.4; }
+    .cost-card.main .c-label { color: rgba(255,255,255,.65); }
+    .cost-card.save .c-label { color: #166534; }
+    .cost-card.time .c-label { color: #1e40af; }
+
+    /* ── BENEFITS STRIP ── */
+    .benefits { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .ben {
+      background: var(--g50); border: 1px solid var(--g200);
+      border-radius: 10px; padding: 14px 14px; text-align: center;
+    }
+    .ben-icon { font-size: 18pt; margin-bottom: 6px; }
+    .ben-title { font-size: 8.5pt; font-weight: 700; color: var(--brand); }
+    .ben-desc { font-size: 7.5pt; color: var(--g500); margin-top: 3px; line-height: 1.4; }
+
+    /* ── CLOSING ── */
+    .closing {
+      background: linear-gradient(135deg, var(--brand) 0%, var(--mid) 100%);
+      color: white; border-radius: 16px; padding: 28px 32px;
+      display: flex; gap: 20px; align-items: flex-start;
+      margin-top: 8px;
+    }
+    .closing-icon { font-size: 32pt; flex-shrink: 0; }
+    .closing h3 { font-size: 14pt; font-weight: 800; color: var(--accent); margin-bottom: 8px; }
+    .closing p { font-size: 9.5pt; color: rgba(255,255,255,.8); line-height: 1.7; }
+    .closing p strong { color: white; }
+
+    /* ── FOOTER ── */
+    .footer {
+      border-top: 1.5px solid var(--g200); padding-top: 14px; margin-top: 32px;
+      display: flex; justify-content: space-between;
+      font-size: 7.5pt; color: #9ca3af;
+    }
+    .footer strong { color: #4b5563; }
+    .footer a { color: #9ca3af; }
+  </style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">🖨️ Guardar como PDF</button>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-text">
+      <div class="hero-badge">Propuesta Técnica Confidencial — Junio 2026</div>
+      <div class="hero-title">⚙ Tech<em>Manager</em></div>
+      <div class="hero-sub">La plataforma digital de Towa para gestionar visitas técnicas, tiendas y equipos de campo en toda América Latina — desde cualquier dispositivo, en tiempo real.</div>
+    </div>
+    <div class="hero-right">
+      <div class="hero-stat">
+        <div class="num">100+</div>
+        <div class="lbl">técnicos gestionados simultáneamente</div>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-stat">
+        <div class="num">Multi</div>
+        <div class="lbl">país · operación centralizada</div>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-stat">
+        <div class="num">24/7</div>
+        <div class="lbl">disponibilidad · acceso desde el celular</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BODY -->
+<div class="body">
+
+  <!-- EL PROBLEMA QUE RESUELVE -->
+  <div class="section-label">¿Qué problema resuelve?</div>
+  <div class="ps-grid">
+    <div class="ps-card problem">
+      <h3>😓 Sin TechManager</h3>
+      <ul>
+        <li>Visitas coordinadas por WhatsApp o Excel</li>
+        <li>Sin historial de lo que se hizo en cada tienda</li>
+        <li>No se sabe si el técnico llegó realmente a la tienda</li>
+        <li>Fotos de evidencia perdidas en el celular del técnico</li>
+        <li>Sin informes de productividad ni horas trabajadas</li>
+        <li>Difícil supervisar equipos en distintos países</li>
+      </ul>
+    </div>
+    <div class="ps-card solution">
+      <h3>✅ Con TechManager</h3>
+      <ul>
+        <li>Visitas asignadas y rastreadas desde la plataforma</li>
+        <li>Historial completo por tienda: qué, cuándo y quién</li>
+        <li>Validación GPS que confirma que el técnico está en el lugar</li>
+        <li>Fotos de evidencia guardadas en la nube, ligadas a la visita</li>
+        <li>Reportes automáticos de productividad y tiempos</li>
+        <li>Un solo sistema para todos los países</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- FUNCIONALIDADES -->
+  <div class="section-label">¿Qué incluye la plataforma?</div>
+  <div class="features">
+    <div class="feat">
+      <div class="feat-icon">🏪</div>
+      <div class="feat-title">Directorio de Tiendas</div>
+      <div class="feat-desc">Mapa completo de locales con dirección, contactos, estado y ubicación GPS. Carga masiva desde Excel.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">📋</div>
+      <div class="feat-title">Gestión de Visitas</div>
+      <div class="feat-desc">Flujo completo: programar → asignar → ejecutar → cerrar. El técnico llena el informe desde su celular.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">📸</div>
+      <div class="feat-title">Evidencias Fotográficas</div>
+      <div class="feat-desc">El técnico toma fotos del trabajo realizado. Quedan archivadas en la nube, ligadas a cada visita.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🖥️</div>
+      <div class="feat-title">Inventario de Equipos</div>
+      <div class="feat-desc">Registro de hardware por tienda: computadoras, impresoras, red. Estado actualizado en cada visita.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">👥</div>
+      <div class="feat-title">Gestión de Personal</div>
+      <div class="feat-desc">Directorio de técnicos y coordinadores con su país, cargo y supervisor asignado.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">📊</div>
+      <div class="feat-title">Panel de Control</div>
+      <div class="feat-desc">Vista ejecutiva con todas las métricas: visitas completadas, tiempos, técnicos activos y más.</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">📍</div>
+      <div class="feat-title">Seguimiento de Ruta</div>
+      <div class="feat-desc">El técnico registra su punto de partida, paradas y llegada a la tienda. Todo con hora y coordenadas.</div>
+      <span class="feat-new">Nuevo</span>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">⏱️</div>
+      <div class="feat-title">Horas Laborales</div>
+      <div class="feat-desc">Informe de horas trabajadas por técnico, distribuido por tienda y tipo de visita. Base para nómina.</div>
+      <span class="feat-new">Nuevo</span>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">📄</div>
+      <div class="feat-title">Reportes PDF</div>
+      <div class="feat-desc">Cada visita genera un informe PDF listo para enviar al cliente o archivar, con fotos y firmas.</div>
+    </div>
+  </div>
+
+  <!-- CÓMO FUNCIONA -->
+  <div class="section-label">¿Cómo funciona?</div>
+  <div class="how">
+    <div class="how-flow">
+      <div class="how-step">
+        <span class="s-icon">🖥️</span>
+        <div class="s-title">Coordinador</div>
+        <div class="s-desc">Programa la visita y asigna al técnico desde el computador</div>
+      </div>
+      <div class="how-arrow">→</div>
+      <div class="how-step">
+        <span class="s-icon">📱</span>
+        <div class="s-title">Técnico en campo</div>
+        <div class="s-desc">Recibe la asignación, viaja a la tienda y ejecuta desde su celular</div>
+      </div>
+      <div class="how-arrow">→</div>
+      <div class="how-step">
+        <span class="s-icon">📍</span>
+        <div class="s-title">Validación GPS</div>
+        <div class="s-desc">El sistema confirma que el técnico está físicamente en la tienda antes de iniciar</div>
+      </div>
+      <div class="how-arrow">→</div>
+      <div class="how-step">
+        <span class="s-icon">📋</span>
+        <div class="s-title">Informe en vivo</div>
+        <div class="s-desc">Completa actividades, sube fotos y cierra la visita. El PDF queda disponible al instante</div>
+      </div>
+      <div class="how-arrow">→</div>
+      <div class="how-step">
+        <span class="s-icon">📊</span>
+        <div class="s-title">Dashboard</div>
+        <div class="s-desc">La gerencia ve todo en tiempo real: estado, tiempos y rendimiento por técnico y país</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COSTO -->
+  <div class="section-label">Inversión mensual</div>
+  <div class="cost-row">
+    <div class="cost-card main">
+      <div class="c-icon">💳</div>
+      <div class="c-num">$26–48</div>
+      <div class="c-label">USD al mes · toda la plataforma operativa con 100+ técnicos y 1.000+ visitas</div>
+    </div>
+    <div class="cost-card save">
+      <div class="c-icon">📉</div>
+      <div class="c-num">~45%</div>
+      <div class="c-label">menos costoso que plataformas equivalentes del mercado</div>
+    </div>
+    <div class="cost-card time">
+      <div class="c-icon">⚡</div>
+      <div class="c-num">3–4</div>
+      <div class="c-label">semanas para tener la plataforma completamente activa</div>
+    </div>
+  </div>
+
+  <!-- BENEFICIOS -->
+  <div class="section-label">¿Por qué esta plataforma?</div>
+  <div class="benefits">
+    <div class="ben">
+      <div class="ben-icon">🔒</div>
+      <div class="ben-title">Seguro y confiable</div>
+      <div class="ben-desc">Acceso con cuenta Google. Copias de seguridad automáticas todos los días.</div>
+    </div>
+    <div class="ben">
+      <div class="ben-icon">📡</div>
+      <div class="ben-title">Siempre disponible</div>
+      <div class="ben-desc">Infraestructura en la nube. Funciona desde cualquier dispositivo con internet.</div>
+    </div>
+    <div class="ben">
+      <div class="ben-icon">🌎</div>
+      <div class="ben-title">Multi-país</div>
+      <div class="ben-desc">Un solo sistema para Venezuela, Colombia, Perú y el resto de la región.</div>
+    </div>
+    <div class="ben">
+      <div class="ben-icon">📈</div>
+      <div class="ben-title">Escala sin costo extra</div>
+      <div class="ben-desc">Precio fijo mensual. Más técnicos y visitas no disparan la factura.</div>
+    </div>
+  </div>
+
+  <!-- CIERRE -->
+  <div class="closing">
+    <div class="closing-icon">🎯</div>
+    <div>
+      <h3>TechManager es la herramienta que Towa necesita</h3>
+      <p>
+        Una sola plataforma para <strong>gestionar, rastrear y analizar</strong> toda la operación técnica de campo — sin hojas de cálculo, sin WhatsApp para coordinar visitas, sin perder el rastro de lo que hicieron los técnicos. Con un costo mensual fijo y accesible, <strong>Towa puede digitalizar completamente su operación en menos de un mes.</strong>
+      </p>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div><strong>Towa — TechManager</strong> · Propuesta Confidencial · Junio 2026</div>
+    <div><a href="propuesta-infraestructura-towa.html">Ver propuesta técnica detallada →</a></div>
+  </div>
+
+</div>
+</body>
+</html>

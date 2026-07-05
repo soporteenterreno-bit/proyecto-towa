@@ -1,0 +1,122 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "nombre": { "type": "string" },
+        "rol": { "type": "string", "enum": ["administrador", "coordinador", "tecnico"] },
+        "telefono": { "type": "string" },
+        "pais": { "type": "string" },
+        "direccion": { "type": "string" },
+        "jefe_inmediato": { "type": "string" },
+        "area_trabajo": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["email", "rol", "createdAt"]
+    },
+    "Tienda": {
+      "title": "Tienda",
+      "description": "Store location.",
+      "type": "object",
+      "properties": {
+        "codigo_tienda": { "type": "string" },
+        "pais": { "type": "string" },
+        "ciudad": { "type": "string" },
+        "region": { "type": "string" },
+        "establecimiento_cc": { "type": "string" },
+        "direccion": { "type": "string" },
+        "referencia": { "type": "string" }
+      },
+      "required": ["codigo_tienda", "pais", "ciudad", "establecimiento_cc", "direccion"]
+    },
+    "Inventario": {
+      "title": "Inventario",
+      "description": "Inventory component linked to a store.",
+      "type": "object",
+      "properties": {
+        "id_tienda": { "type": "string" },
+        "categoria": { "type": "string" },
+        "marca": { "type": "string" },
+        "modelo": { "type": "string" },
+        "serial": { "type": "string" },
+        "estado_fisico": { "type": "string" },
+        "estado_operativo": { "type": "string" }
+      },
+      "required": ["id_tienda", "categoria", "marca", "modelo", "serial", "estado_fisico", "estado_operativo"]
+    },
+    "Visita": {
+      "title": "Visita",
+      "description": "Technical visit to a store.",
+      "type": "object",
+      "properties": {
+        "tipo": { "type": "string", "enum": ["Programada", "Falla"] },
+        "tecnico_uid": { "type": "string" },
+        "coordinador_uid": { "type": "string" },
+        "id_tienda": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pendiente", "En Curso", "Completada"] },
+        "fecha_programada": { "type": "string" },
+        "fecha_inicio": { "type": "string" },
+        "fecha_fin": { "type": "string" },
+        "tt_number": { "type": "string" },
+        "notas_coordinador": { "type": "string" },
+        "ponderacion_final": { "type": "number" },
+        "revision": { "type": "string" },
+        "acciones_aplicadas": { "type": "string" },
+        "resultado": { "type": "string" },
+        "acciones_pendientes": { "type": "string" }
+      },
+      "required": ["tipo", "tecnico_uid", "id_tienda", "status"]
+    },
+    "ReporteActividad": {
+      "title": "Reporte Actividad",
+      "description": "Individual sub-activity report for a visit.",
+      "type": "object",
+      "properties": {
+        "id_visita": { "type": "string" },
+        "actividad_id": { "type": "string" },
+        "completada": { "type": "boolean" },
+        "razon_no_completada": { "type": "string" },
+        "evidencia_url": { "type": "string" }
+      },
+      "required": ["id_visita", "actividad_id", "completada"]
+    },
+    "ConfigComunicaciones": {
+      "title": "Config Comunicaciones",
+      "description": "Email configuration per country.",
+      "type": "object",
+      "properties": {
+        "lista_correos": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["lista_correos"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Registered users."
+    },
+    "/tiendas/{tiendaId}": {
+      "schema": { "$ref": "#/entities/Tienda" },
+      "description": "Registered stores."
+    },
+    "/inventario/{inventarioId}": {
+      "schema": { "$ref": "#/entities/Inventario" },
+      "description": "Registered inventory components."
+    },
+    "/visitas/{visitaId}": {
+      "schema": { "$ref": "#/entities/Visita" },
+      "description": "Technical visits."
+    },
+    "/reportes_actividades/{reporteId}": {
+      "schema": { "$ref": "#/entities/ReporteActividad" },
+      "description": "Sub-activities documentation for visits."
+    },
+    "/config_comunicaciones/{paisId}": {
+      "schema": { "$ref": "#/entities/ConfigComunicaciones" },
+      "description": "Email configuration indexed by country name."
+    }
+  }
+}
