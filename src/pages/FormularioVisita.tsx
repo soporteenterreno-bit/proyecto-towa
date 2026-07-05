@@ -296,18 +296,60 @@ export default function FormularioVisita() {
       }));
   };
 
+  const dataUrlToBlob = (dataUrl: string) => {
+      const arr = dataUrl.split(',');
+      const mime = arr[0].match(/:(.*?);/)![1];
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+      }
+      return new Blob([u8arr], { type: mime });
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, activityId: string) => {
       const files = Array.from(e.target.files || []) as File[];
       if(files.length === 0) return;
 
-      const compressedImages = await Promise.all(files.map(f => compressImage(f)));
-      
-      setItems(prev => prev.map(item => {
-          if(item.id === activityId) {
-              return { ...item, images: [...item.images, ...compressedImages] };
+      const uploadedUrls: string[] = [];
+
+      for (const file of files) {
+          try {
+              // 1. Comprimir
+              const compressedBase64 = await compressImage(file);
+              // 2. Convertir a Blob
+              const blob = dataUrlToBlob(compressedBase64);
+              // 3. Subir a Supabase Storage
+              const fileName = `${visitaId}_${activityId}_${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
+              const filePath = `${visitaId}/${fileName}`;
+              
+              const { error } = await supabase.storage
+                  .from('evidencias_visitas')
+                  .upload(filePath, blob, { contentType: 'image/jpeg' });
+              
+              if (!error) {
+                  const { data } = supabase.storage.from('evidencias_visitas').getPublicUrl(filePath);
+                  if (data) {
+                      uploadedUrls.push(data.publicUrl);
+                  }
+              } else {
+                  console.error("Error subiendo a storage:", error);
+                  alert("Error al subir la imagen. Verifica que el bucket 'evidencias_visitas' exista y tenga permisos públicos.");
+              }
+          } catch(err) {
+              console.error(err);
           }
-          return item;
-      }));
+      }
+      
+      if (uploadedUrls.length > 0) {
+          setItems(prev => prev.map(item => {
+              if(item.id === activityId) {
+                  return { ...item, images: [...item.images, ...uploadedUrls] };
+              }
+              return item;
+          }));
+      }
   };
 
   const removeImage = (activityId: string, indexToRemove: number) => {
