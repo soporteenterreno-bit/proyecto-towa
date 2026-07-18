@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { useAuth, UserRole } from '../context/AuthContext';
-import { Shield, UserCog, Mail, Edit2, Trash2 } from 'lucide-react';
-import { PAISES_LATAM } from '../constants';
+import { Shield, UserCog, Mail, Edit2, Trash2, X } from 'lucide-react';
+import { Country } from 'country-state-city';
+import { useNotification } from '../context/NotificationContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function Personal() {
-  const { role } = useAuth();
+  usePageTitle('Personal');
+  const { showAlert, showConfirm } = useNotification();
+  const { userData, role, refreshUserData } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const allCountries = Country.getAllCountries().map(c => c.name).sort();
 
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [formData, setFormData] = useState({
-    nombre: '', telefono: '', pais: '', direccion: '', rol: 'tecnico' as UserRole, area_trabajo: '', jefe_inmediato: '', cargo: ''
+    nombre: '', telefono: '', pais: userData?.pais || '', direccion: '', rol: 'tecnico' as UserRole, area_trabajo: '', jefe_inmediato: '', cargo: ''
   });
 
   const fetchUsers = async () => {
@@ -30,7 +35,7 @@ export default function Personal() {
                 nombre = parts.map((part: string) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
                 
                 // Fire and forget update to DB so it persists
-                supabase.from('users').update({ nombre }).eq('id', data.id).catch(console.error);
+                supabase.from('users').update({ nombre }).eq('id', data.id).then(({error}) => { if(error) console.error(error); });
             }
 
             return { ...data, nombre };
@@ -50,7 +55,7 @@ export default function Personal() {
       setFormData({
           nombre: user.nombre || '',
           telefono: user.telefono || '',
-          pais: user.pais || '',
+          pais: user.pais || userData?.pais || '',
           direccion: user.direccion || '',
           rol: user.rol || 'tecnico',
           area_trabajo: user.area_trabajo || '',
@@ -67,33 +72,38 @@ export default function Personal() {
           await supabase.from('users').update(formData).eq('id', editingUser.id);
           setIsEditModalOpen(false);
           fetchUsers();
+          if (editingUser.id === userData?.uid) {
+              await refreshUserData();
+          }
+          showAlert("Usuario actualizado correctamente", "success");
       } catch (err) {
           console.error(err);
-          alert('Error al actualizar el personal');
+          showAlert('Error al actualizar el personal', 'error');
       }
   };
 
   const handleDeleteUser = async (userId: string, currentRole: string) => {
       if(currentRole === 'administrador') {
-          return alert('No puedes eliminar a un administrador desde esta vista.');
+          return showAlert('No puedes eliminar a un administrador desde esta vista.', 'warning');
       }
-      if(window.confirm('¿Estás seguro de que deseas eliminar permanentemente de la base de datos a este usuario? Esta acción es irreversible.')) {
+      if(await showConfirm('¿Estás seguro de que deseas eliminar permanentemente de la base de datos a este usuario? Esta acción es irreversible.')) {
           try {
               // Delete user data from public.users
               await supabase.from('users').delete().eq('id', userId);
               // Note: Auth user deletion is usually handled via admin api, 
               // but deleting from the public schema is a good start.
               fetchUsers();
+              showAlert("Usuario eliminado", "success");
           } catch(err) {
               console.error(err);
-              alert('Ocurrió un error al intentar eliminar el usuario.');
+              showAlert('Ocurrió un error al intentar eliminar el usuario.', 'error');
           }
       }
   };
 
   if (role === 'tecnico') return <div className="p-8 text-center text-red-500">Acceso denegado.</div>;
 
-  const coordinadores = users.filter(u => u.rol === 'coordinador' || u.rol === 'administrador');
+  const coordinadores = users.filter(u => u.rol === 'administrador');
 
   return (
     <div className="space-y-6">
@@ -140,7 +150,7 @@ export default function Personal() {
                         </td>
                         <td className="p-4">
                             <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider 
-                                ${u.rol === 'administrador' ? 'bg-red-100 text-red-700' : u.rol === 'coordinador' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                                ${u.rol === 'administrador' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                                 {u.rol === 'tecnico' ? 'Técnico' : u.rol}
                             </span>
                         </td>
@@ -171,18 +181,14 @@ export default function Personal() {
         )}
       </div>
 
-      {isModalOpen(isEditModalOpen, setIsEditModalOpen, formData, setFormData, editingUser, coordinadores, handleUpdateUser)}
-    </div>
-  );
-}
-
-function isModalOpen(isOpen: boolean, setIsOpen: any, formData: any, setFormData: any, user: any, coordinadores: any[], handleSubmit: any) {
-    if (!isOpen || !user) return null;
-    return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      {isEditModalOpen && editingUser && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                <h3 className="text-xl font-bold mb-6 text-gray-800">Modificar Datos del Personal</h3>
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="flex justify-between items-center mb-6">
+                   <h3 className="text-xl font-bold text-gray-800">Modificar Datos del Personal</h3>
+                   <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6"/></button>
+                </div>
+                <form onSubmit={handleUpdateUser} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                        <div>
                           <label className="block text-sm font-medium mb-1 text-gray-700">Nombre Completo</label>
@@ -190,7 +196,7 @@ function isModalOpen(isOpen: boolean, setIsOpen: any, formData: any, setFormData
                        </div>
                        <div>
                           <label className="block text-sm font-medium mb-1 text-gray-700">Correo Electrónico (Solo Lectura)</label>
-                          <input disabled value={user.email} className="w-full border p-2.5 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed" />
+                          <input disabled value={editingUser.email} className="w-full border p-2.5 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed" />
                        </div>
                        <div>
                           <label className="block text-sm font-medium mb-1 text-gray-700">Teléfono</label>
@@ -200,7 +206,7 @@ function isModalOpen(isOpen: boolean, setIsOpen: any, formData: any, setFormData
                           <label className="block text-sm font-medium mb-1 text-gray-700">País</label>
                           <select value={formData.pais} onChange={e=>setFormData({...formData, pais: e.target.value})} className="w-full border p-2.5 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-brand-dark outline-none">
                               <option value="">Selecciona País...</option>
-                              {PAISES_LATAM.map(p => <option key={p} value={p}>{p}</option>)}
+                              {allCountries.map(p => <option key={p} value={p}>{p}</option>)}
                           </select>
                        </div>
                        <div className="md:col-span-2">
@@ -214,9 +220,8 @@ function isModalOpen(isOpen: boolean, setIsOpen: any, formData: any, setFormData
 
                        <div>
                           <label className="block text-sm font-medium mb-1 text-gray-700">Rol de Sistema</label>
-                          <select required value={formData.rol} onChange={e=>setFormData({...formData, rol: e.target.value})} className="w-full border p-2.5 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-brand-dark outline-none">
+                          <select required value={formData.rol} onChange={e=>setFormData({...formData, rol: e.target.value as any})} className="w-full border p-2.5 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-brand-dark outline-none">
                               <option value="tecnico">Técnico</option>
-                              <option value="coordinador">Coordinador</option>
                               <option value="administrador">Administrador</option>
                           </select>
                        </div>
@@ -226,7 +231,7 @@ function isModalOpen(isOpen: boolean, setIsOpen: any, formData: any, setFormData
                        </div>
                        <div>
                           <label className="block text-sm font-medium mb-1 text-gray-700">Cargo en la Organización</label>
-                          <input value={formData.cargo} onChange={e=>setFormData({...formData, cargo: e.target.value})} placeholder="Ej: Técnico Senior, Supervisor TI, Analista..." className="w-full border p-2.5 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-brand-dark outline-none" />
+                          <input value={formData.cargo} onChange={e=>setFormData({...formData, cargo: e.target.value})} placeholder="Ej: Técnico Senior, Supervisor TI..." className="w-full border p-2.5 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-brand-dark outline-none" />
                        </div>
                        <div className="md:col-span-2">
                           <label className="block text-sm font-medium mb-1 text-gray-700">Jefe Inmediato Asignado</label>
@@ -238,11 +243,13 @@ function isModalOpen(isOpen: boolean, setIsOpen: any, formData: any, setFormData
                     </div>
                     
                     <div className="flex justify-end space-x-3 pt-6 mt-4 border-t border-gray-100">
-                        <button type="button" onClick={() => setIsOpen(false)} className="px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">Cancelar</button>
+                        <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">Cancelar</button>
                         <button type="submit" className="px-5 py-2.5 text-sm font-semibold text-white bg-brand-dark hover:bg-brand-hover rounded-xl shadow-sm transition-colors">Actualizar Datos</button>
                     </div>
                 </form>
             </div>
-        </div>
-    );
+          </div>
+      )}
+    </div>
+  );
 }

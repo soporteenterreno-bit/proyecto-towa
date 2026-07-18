@@ -4,18 +4,26 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Calendar, Building, CheckSquare } from 'lucide-react';
 import { sendVisitNotificationEmail } from '../utils/emailService';
+import { usePaisesTiendas } from '../hooks/usePaisesTiendas';
+import { useNotification } from '../context/NotificationContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function AsignarVisita() {
+  usePageTitle('Asignar Visita');
+  const { showAlert } = useNotification();
   const { userData } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [tiendas, setTiendas] = useState<any[]>([]);
   const [tecnicos, setTecnicos] = useState<any[]>([]);
+  const [categoriasList, setCategoriasList] = useState<any[]>([]);
   const [componentesList, setComponentesList] = useState<any[]>([]);
+  const [expandedCatAsignar, setExpandedCatAsignar] = useState<string[]>([]);
+
   
   const [formData, setFormData] = useState({
     tipo: 'Programada', // 'Programada' | 'Falla' | 'Rutina'
-    pais: '',
+    pais: userData?.pais || '',
     id_tienda: '',
     tecnico_uid: '',
     fecha_programada: '',
@@ -36,11 +44,22 @@ export default function AsignarVisita() {
 
       const { data: cSnap } = await supabase.from('preguntas_componentes').select('*');
       if (cSnap) setComponentesList(cSnap);
+      
+      const { data: catSnap } = await supabase.from('categorias_inventario').select('*').order('nombre');
+      if (catSnap) setCategoriasList(catSnap);
     };
     fetchBaseData();
   }, []);
   
-  const tiendasFiltradas = formData.pais ? tiendas.filter(t => t.pais === formData.pais) : [];
+  const { paises } = usePaisesTiendas();
+  
+  useEffect(() => {
+    if (userData?.pais && !formData.pais) {
+      setFormData(prev => ({ ...prev, pais: userData.pais }));
+    }
+  }, [userData]);
+
+  const tiendasFiltradas = formData.pais ? tiendas.filter(t => t.pais_tienda === formData.pais) : [];
   const tecnicosFiltrados = formData.pais ? tecnicos.filter(u => u.pais === formData.pais) : tecnicos;
 
   const getMinDate = () => {
@@ -63,11 +82,11 @@ export default function AsignarVisita() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.id_tienda || !formData.fecha_programada) return alert("Faltan campos obligatorios: tienda y fecha");
-    if (formData.tipo === 'Falla' && !formData.tt_number) return alert("Para visitas de Falla es obligatorio el Número de TT");
+    if (!formData.id_tienda || !formData.fecha_programada) return showAlert("Faltan campos obligatorios: tienda y fecha", "warning");
+    if (formData.tipo === 'Falla' && !formData.tt_number) return showAlert("Para visitas de Falla es obligatorio el Número de TT", "warning");
 
     if (formData.fecha_programada < getMinDate()) {
-        return alert("La fecha de la visita no puede ser en el pasado.");
+        return showAlert("La fecha de la visita no puede ser en el pasado.", "warning");
     }
 
     setLoading(true);
@@ -98,18 +117,18 @@ export default function AsignarVisita() {
               fecha_programada: formData.fecha_programada,
               prioridad: formData.prioridad,
               tipo_visita: formData.tipo,
-              tienda_codigo: tiendaSeleccionada?.codigo_tienda || 'N/A',
-              tienda_nombre: tiendaSeleccionada?.establecimiento_cc || 'N/A',
-              tienda_ciudad: tiendaSeleccionada?.ciudad || 'N/A',
+              tienda_codigo: tiendaSeleccionada?.id_tienda || 'N/A',
+              tienda_nombre: tiendaSeleccionada?.tienda || 'N/A',
+              tienda_ciudad: tiendaSeleccionada?.ciudad_tienda || 'N/A',
               tecnico_nombre: tecnicoSeleccionado?.nombre || ''
           });
       }
 
-      alert('Visita asignada exitosamente');
+      showAlert('Visita asignada exitosamente', 'success');
       navigate('/visitas/tabla');
     } catch (error) {
       console.error(error);
-      alert('Error al asignar visita');
+      showAlert('Error al asignar visita', 'error');
     } finally {
       setLoading(false);
     }
@@ -169,21 +188,47 @@ export default function AsignarVisita() {
                     <CheckSquare className="w-5 h-5 text-brand-dark" />
                     <h3 className="font-bold text-gray-800 text-lg">Componentes a Revisar</h3>
                 </div>
-                {componentesList.length === 0 ? (
-                    <p className="text-sm text-gray-500">No hay componentes configurados en el sistema.</p>
+                {categoriasList.length === 0 ? (
+                    <p className="text-sm text-gray-500">No hay categorías ni componentes configurados en el sistema.</p>
                 ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {componentesList.map(comp => (
-                            <label key={comp.id} className={`flex items-center p-3 rounded-lg border cursor-pointer transition-colors ${formData.componentes_afectados.includes(comp.id) ? 'bg-brand-dark border-brand-dark text-white' : 'bg-white border-gray-300 hover:bg-gray-100 text-gray-700'}`}>
-                                <input 
-                                    type="checkbox"
-                                    className="sr-only"
-                                    checked={formData.componentes_afectados.includes(comp.id)}
-                                    onChange={() => toggleComponente(comp.id)}
-                                />
-                                <span className="font-medium text-sm text-center w-full">{comp.name}</span>
-                            </label>
-                        ))}
+                    <div className="space-y-3">
+                        {categoriasList.map(cat => {
+                            const catComponents = componentesList.filter(c => c.categoria_id === cat.id);
+                            if (catComponents.length === 0) return null;
+                            const isExpanded = expandedCatAsignar.includes(cat.id);
+                            
+                            return (
+                                <div key={cat.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                                    <div 
+                                        className="p-3 bg-gray-100 flex justify-between items-center cursor-pointer hover:bg-gray-200 transition-colors"
+                                        onClick={() => {
+                                            setExpandedCatAsignar(prev => prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]);
+                                        }}
+                                    >
+                                        <span className="font-bold text-gray-800">{cat.nombre}</span>
+                                        <div className="flex items-center">
+                                            <span className="text-xs font-medium text-gray-500 mr-2">{catComponents.filter(c => formData.componentes_afectados.includes(c.id)).length} seleccionados</span>
+                                            <span className="text-xs text-gray-400">({catComponents.length} totales)</span>
+                                        </div>
+                                    </div>
+                                    {isExpanded && (
+                                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 bg-white border-t border-gray-200">
+                                            {catComponents.map(comp => (
+                                                <label key={comp.id} className={`flex items-center p-3 rounded-lg border cursor-pointer transition-colors ${formData.componentes_afectados.includes(comp.id) ? 'bg-brand-dark border-brand-dark text-white' : 'bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700'}`}>
+                                                    <input 
+                                                        type="checkbox"
+                                                        className="sr-only"
+                                                        checked={formData.componentes_afectados.includes(comp.id)}
+                                                        onChange={() => toggleComponente(comp.id)}
+                                                    />
+                                                    <span className="font-medium text-sm text-center w-full">{comp.name}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -192,7 +237,7 @@ export default function AsignarVisita() {
               <label className="block text-sm font-medium text-gray-700 mb-1">País Target</label>
               <select required value={formData.pais} onChange={e=>setFormData({...formData, pais: e.target.value, id_tienda: '', tecnico_uid: ''})} className="w-full border-gray-300 border p-2.5 rounded-xl bg-white focus:ring-brand-dark focus:border-brand-dark">
                 <option value="">Selecciona País...</option>
-                {Array.from(new Set(tecnicos.map(t => t.pais))).filter(Boolean).map(p => <option key={p as string} value={p as string}>{p as string}</option>)}
+                {paises.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
 
@@ -205,7 +250,7 @@ export default function AsignarVisita() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Tienda a Visitar</label>
               <select required disabled={!formData.pais} value={formData.id_tienda} onChange={e=>setFormData({...formData, id_tienda: e.target.value})} className="w-full border-gray-300 border p-2.5 rounded-xl bg-white focus:ring-brand-dark focus:border-brand-dark disabled:bg-gray-100 disabled:text-gray-400">
                 <option value="">{formData.pais ? 'Selecciona una tienda...' : 'Primero selecciona un país'}</option>
-                {tiendasFiltradas.map(t => <option key={t.id} value={t.id}>{t.codigo_tienda} - {t.establecimiento_cc} ({t.ciudad})</option>)}
+                {tiendasFiltradas.map(t => <option key={t.id} value={t.id}>{t.id_tienda} - {t.tienda} ({t.ciudad_tienda})</option>)}
               </select>
             </div>
 

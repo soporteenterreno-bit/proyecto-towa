@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '../supabase';
+import { useNotification } from './NotificationContext';
 
-export type UserRole = 'administrador' | 'coordinador' | 'tecnico';
+export type UserRole = 'administrador' | 'tecnico';
 
 export interface UserData {
   uid: string;
@@ -23,11 +24,13 @@ interface AuthContextType {
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
+  refreshUserData: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { showAlert } = useNotification();
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
@@ -102,8 +105,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (data) {
           let currentRole = data.rol as UserRole;
           
-          // Auto-upgrade default admin if needed
-          if (currentUser.email === 'jhan.rocker@gmail.com' && currentRole !== 'administrador') {
+          // Si el usuario no tiene rol asignado por defecto
+          if (!currentRole) {
+            currentRole = currentUser.email === 'jhan.rocker@gmail.com' ? 'administrador' : 'tecnico';
+            const { error: updateError } = await supabase
+              .from('users')
+              .update({ rol: currentRole })
+              .eq('id', currentUser.id);
+              
+            if (!updateError) {
+              data.rol = currentRole;
+            }
+          } else if (currentUser.email === 'jhan.rocker@gmail.com' && currentRole !== 'administrador') {
+            // Auto-upgrade default admin if needed
             const { error: updateError } = await supabase
               .from('users')
               .update({ rol: 'administrador' })
@@ -129,18 +143,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refreshUserData = async () => {
+    if (user) {
+      await handleSession(user);
+    }
+  };
+
   const signInWithGoogle = async () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-           redirectTo: window.location.origin
+           redirectTo: window.location.origin,
+           queryParams: {
+             prompt: 'select_account'
+           }
         }
       });
       if (error) throw error;
     } catch (error: any) {
       console.error("Error signing in with Google", error);
-      alert('Error al iniciar sesión: ' + (error.message || 'Error desconocido'));
+      showAlert('Error al iniciar sesión: ' + (error.message || 'Error desconocido'), 'error');
     }
   };
 
@@ -153,7 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, userData, role, loading, signInWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, userData, role, loading, signInWithGoogle, logout, refreshUserData }}>
       {children}
     </AuthContext.Provider>
   );

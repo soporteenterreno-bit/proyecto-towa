@@ -2,15 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabase';
 import { Save, User, Phone, MapPin, Briefcase } from 'lucide-react';
-import { PAISES_LATAM } from '../constants';
+import { Country } from 'country-state-city';
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
+import { useNotification } from '../context/NotificationContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function Cuenta() {
-  const { userData, user, role } = useAuth();
+  usePageTitle('Mi Cuenta');
+  const { showAlert } = useNotification();
+  const { userData, user, role, refreshUserData } = useAuth();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [jefeNombre, setJefeNombre] = useState('');
+  const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
+  const allCountries = Country.getAllCountries().map(c => c.name).sort();
   const [formData, setFormData] = useState({
     telefono: '',
     pais: '',
@@ -30,14 +36,18 @@ export default function Cuenta() {
              try {
                 const { data, error } = await supabase
                   .from('users')
-                  .select('nombre')
+                  .select('nombre,email')
                   .eq('id', userData.jefe_inmediato)
                   .single();
                   
                 if (data && !error) {
-                    setJefeNombre(data.nombre);
+                    setJefeNombre(data.nombre || data.email || 'Desconocido');
+                } else {
+                    setJefeNombre('Desconocido');
                 }
-             } catch(e) {}
+             } catch(e) {
+                 setJefeNombre('Desconocido');
+             }
          }
       };
       fetchJefe();
@@ -65,11 +75,12 @@ export default function Cuenta() {
         direccion: formData.direccion
       }).eq('id', user.id);
       
+      await refreshUserData();
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
       console.error("Error actualizando perfil:", error);
-      alert("No se pudo actualizar el perfil.");
+      showAlert("No se pudo actualizar el perfil.", "error");
     } finally {
       setLoading(false);
     }
@@ -136,7 +147,7 @@ export default function Cuenta() {
                 className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-brand-hover focus:border-transparent outline-none transition-all"
               >
                 <option value="">Selecciona un país</option>
-                {PAISES_LATAM.map(p => (
+                {allCountries.map(p => (
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>

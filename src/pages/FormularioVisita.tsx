@@ -7,6 +7,8 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useNotification } from '../context/NotificationContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 const programadaActivities = [
   {
@@ -57,6 +59,8 @@ type ActivityState = {
 };
 
 export default function FormularioVisita() {
+  usePageTitle('Formulario de Visita');
+  const { showAlert } = useNotification();
   const { visitaId } = useParams();
   const navigate = useNavigate();
   const { user, role } = useAuth();
@@ -65,6 +69,8 @@ export default function FormularioVisita() {
   const [loading, setLoading] = useState(true);
   
   const [items, setItems] = useState<ActivityState[]>([]);
+  const [checklistPreguntas, setChecklistPreguntas] = useState<any[]>([]);
+  const [checklistRespuestas, setChecklistRespuestas] = useState<Record<string, boolean | null>>({});
   const [notas, setNotas] = useState('');
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -92,7 +98,7 @@ export default function FormularioVisita() {
       try {
           const { data: vSnap, error: vError } = await supabase.from('visitas').select('*').eq('id', visitaId).single();
           if (vError || !vSnap) {
-             alert('Visita no encontrada');
+             showAlert('Visita no encontrada', 'error');
              navigate('/visitas/mis-visitas');
              return;
           }
@@ -123,6 +129,22 @@ export default function FormularioVisita() {
           setVisita(vData);
 
           // Init State
+          const { data: pregData } = await supabase.from('checklist_preguntas').select('*').eq('activo', true).order('orden');
+          if (pregData) {
+             const formType = vData.tipo;
+             const validQs = pregData.filter(p => p.formularios.includes(formType));
+             setChecklistPreguntas(validQs);
+             if (vData.checklist_respuestas && vData.checklist_respuestas.length > 0) {
+                const respMap: any = {};
+                vData.checklist_respuestas.forEach((r: any) => respMap[r.id] = r.respuesta);
+                setChecklistRespuestas(respMap);
+             } else {
+                const initMap: any = {};
+                validQs.forEach(q => initMap[q.id] = null);
+                setChecklistRespuestas(initMap);
+             }
+          }
+
           if(vData.actividades_ejecutadas && vData.actividades_ejecutadas.length > 0) {
              setItems(vData.actividades_ejecutadas);
              setNotas(vData.notas_adicionales || '');
@@ -175,9 +197,9 @@ export default function FormularioVisita() {
   // GPS check
   useEffect(() => {
     if (!visita || visita.status === 'Completada') return;
-    if (!user || user.uid !== visita.tecnico_uid) return;
+    if (!user || user.id !== visita.tecnico_uid) return;
 
-    const coords = visita.tienda?.coordenadas;
+    const coords = visita.tienda?.coordenadas_tienda;
     if (!coords?.lat || !coords?.lng) {
       setGpsStatus('no_coords');
       return;
@@ -196,33 +218,23 @@ export default function FormularioVisita() {
     );
   }, [visita?.id, user, visita?.tienda, visita?.tecnico_uid, visita?.status]);
 
+  const getArrRespuestas = () => {
+      return checklistPreguntas.map(q => ({
+          id: q.id,
+          pregunta: q.pregunta,
+          respuesta: checklistRespuestas[q.id]
+      }));
+  };
+
   // Derived state for scoring
   const calculateScores = () => {
-      let totalPts = 0;
+      let totalPts = checklistPreguntas.length;
       let earnedPts = 0;
-      let componentScores = items.map(item => {
-          let itemTotal = 0;
-          let itemEarned = 0;
-          item.subActivities.forEach(sub => {
-              const pts = sub.points || 10; // default points if 0 to avoid zero div
-              itemTotal += pts;
-              totalPts += pts;
-              if (sub.isCompleted === true) {
-                  itemEarned += pts;
-                  earnedPts += pts;
-              }
-          });
-          return {
-              id: item.id,
-              title: item.title,
-              total: itemTotal,
-              earned: itemEarned,
-              percentage: itemTotal > 0 ? Math.round((itemEarned / itemTotal) * 100) : 0
-          };
+      checklistPreguntas.forEach(q => {
+          if (checklistRespuestas[q.id] === true) earnedPts++;
       });
-
       const totalPercentage = totalPts > 0 ? Math.round((earnedPts / totalPts) * 100) : 0;
-      return { totalPercentage, componentScores, totalPts, earnedPts };
+      return { totalPercentage, totalPts, earnedPts };
   };
 
   const scoresInfo = calculateScores();
@@ -236,12 +248,13 @@ export default function FormularioVisita() {
             supabase.from('visitas').update({
                 ponderacion_final: currPonderacion,
                 actividades_ejecutadas: items,
-                notas_adicionales: notas
-            }).eq('id', visita.id).catch(e => console.warn("Background auto-save failed", e));
+                notas_adicionales: notas,
+                checklist_respuestas: getArrRespuestas()
+            }).eq('id', visita.id).then(({error}) => { if (error) console.warn("Background auto-save failed", error); });
          }
      }, 2500);
      return () => clearTimeout(timeoutId);
-  }, [items, notas, currPonderacion, visita]);
+  }, [items, notas, currPonderacion, visita, checklistRespuestas]);
 
 
   const compressImage = (file: File): Promise<string> => {
@@ -335,7 +348,7 @@ export default function FormularioVisita() {
                   }
               } else {
                   console.error("Error subiendo a storage:", error);
-                  alert("Error al subir la imagen. Verifica que el bucket 'evidencias_visitas' exista y tenga permisos públicos.");
+                  showAlert("Error al subir la imagen. Verifica que el bucket 'evidencias_visitas' exista y tenga permisos públicos.", "error");
               }
           } catch(err) {
               console.error(err);
@@ -427,7 +440,7 @@ export default function FormularioVisita() {
           }));
       } catch (e) {
           console.error(e);
-          alert('Error al guardar el formulario.');
+          showAlert('Error al guardar el formulario.', 'error');
       } finally {
           setSaving(false);
       }
@@ -497,11 +510,11 @@ export default function FormularioVisita() {
           pdf.setFont("helvetica", "normal");
           pdf.setTextColor(60, 60, 60);
           
-          pdf.text(`Agencia: ${visita.tienda?.codigo_tienda} - ${visita.tienda?.establecimiento_cc}`, 15, currentY);
+          pdf.text(`Agencia: ${visita.tienda?.id_tienda} - ${visita.tienda?.tienda}`, 15, currentY);
           pdf.text(`Técnico: ${visita.tecnicoInfo?.nombre || 'No definido'}`, 110, currentY);
           
           currentY += 6;
-          pdf.text(`Ubicación: ${visita.tienda?.ciudad}, ${visita.tienda?.pais}`, 15, currentY);
+          pdf.text(`Ubicación: ${visita.tienda?.ciudad_tienda}, ${visita.tienda?.pais_tienda}`, 15, currentY);
           pdf.text(`Jefe Inmediato: ${visita.tecnicoInfo?.jefeInfo?.nombre || visita.tecnicoInfo?.jefe_inmediato || 'No asignado'}`, 110, currentY);
           
           currentY += 6;
@@ -530,31 +543,31 @@ export default function FormularioVisita() {
 
           currentY += 12;
 
-          // Scores Summary Table
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(11);
-          pdf.setTextColor(brandTheme[0], brandTheme[1], brandTheme[2]);
-          pdf.text("RESUMEN DE PUNTUACIÓN POR COMPONENTES", 15, currentY);
-          currentY += 4;
-          
-          const scoresData = scoresInfo.componentScores.map(comp => [
-             comp.title,
-             `${comp.total} pts`,
-             `${comp.earned} pts`,
-             `${comp.percentage}%`
-          ]);
+          // Checklist Summary Table
+          if (checklistPreguntas.length > 0) {
+              pdf.setFont("helvetica", "bold");
+              pdf.setFontSize(11);
+              pdf.setTextColor(brandTheme[0], brandTheme[1], brandTheme[2]);
+              pdf.text("CHECKLIST GENERAL", 15, currentY);
+              currentY += 4;
+              
+              const checklistData = checklistPreguntas.map(q => [
+                 q.pregunta,
+                 checklistRespuestas[q.id] === true ? 'SÍ' : (checklistRespuestas[q.id] === false ? 'NO' : '---')
+              ]);
 
-          autoTable(pdf, {
-              startY: currentY,
-              head: [['Componente / Área', 'Puntos Posibles', 'Puntos Obtenidos', 'Porcentaje (%)']],
-              body: scoresData,
-              theme: 'grid',
-              styles: { fontSize: 8, cellPadding: 2, halign: 'center' },
-              columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } },
-              headStyles: { fillColor: [240, 240, 240], textColor: brandDark as [number, number, number] },
-          });
+              autoTable(pdf, {
+                  startY: currentY,
+                  head: [['Pregunta', 'Respuesta']],
+                  body: checklistData,
+                  theme: 'grid',
+                  styles: { fontSize: 8, cellPadding: 2, halign: 'left' },
+                  columnStyles: { 1: { halign: 'center', fontStyle: 'bold' } },
+                  headStyles: { fillColor: [240, 240, 240], textColor: brandDark as [number, number, number] },
+              });
 
-          currentY = (pdf as any).lastAutoTable.finalY + 12;
+              currentY = (pdf as any).lastAutoTable.finalY + 12;
+          }
 
           // Main Activities Table
           pdf.setFont("helvetica", "bold");
@@ -677,10 +690,10 @@ export default function FormularioVisita() {
               pdf.text(`Documento Formateado por Towa TechManager - Página ${i} de ${pageCount}`, 105, 275, { align: 'center' });
           }
 
-          pdf.save(`Reporte_TOWA_${visita.tienda?.codigo_tienda || 'Indef'}.pdf`);
+          pdf.save(`Reporte_TOWA_${visita.tienda?.id_tienda || 'Indef'}.pdf`);
       } catch (e) {
           console.error(e);
-          alert('Error generando PDF nativo');
+          showAlert('Error generando PDF nativo', 'error');
       } finally {
           setDownloading(false);
       }
@@ -691,7 +704,7 @@ export default function FormularioVisita() {
   if (!visita) return <div className="p-8 text-center text-red-500">Error cargando visita.</div>;
 
   const isCompleted = visita.status === 'Completada';
-  const isOwner = user?.uid === visita.tecnico_uid;
+  const isOwner = user?.id === visita.tecnico_uid;
 
   const allSubsCompleted = items.flatMap(i => i.subActivities).filter(s => s.isCompleted === true);
   const allSubsNotCompleted = items.flatMap(i => i.subActivities).filter(s => s.isCompleted === false);
@@ -724,7 +737,7 @@ export default function FormularioVisita() {
                 <p className="text-xs text-gray-400 mb-5">distancia actual a la tienda</p>
                 <button
                   onClick={() => {
-                    const coords = visita?.tienda?.coordenadas;
+                    const coords = visita?.tienda?.coordenadas_tienda;
                     if (!coords?.lat) { setGpsStatus('no_coords'); return; }
                     setGpsStatus('checking');
                     navigator.geolocation.getCurrentPosition(
@@ -799,8 +812,8 @@ export default function FormularioVisita() {
                      <div className="flex items-start">
                          <Building className="w-4 h-4 text-brand-dark mt-0.5 mr-3 shrink-0" />
                          <div>
-                             <p className="text-sm font-bold text-gray-800">{visita.tienda?.codigo_tienda} - {visita.tienda?.establecimiento_cc}</p>
-                             <p className="text-xs text-gray-500">{visita.tienda?.ciudad}, {visita.tienda?.pais}</p>
+                             <p className="text-sm font-bold text-gray-800">{visita.tienda?.id_tienda} - {visita.tienda?.tienda}</p>
+                             <p className="text-xs text-gray-500">{visita.tienda?.ciudad_tienda}, {visita.tienda?.pais_tienda}</p>
                          </div>
                      </div>
                      <div className="flex items-start">
@@ -875,20 +888,49 @@ export default function FormularioVisita() {
                      <div className="bg-white border border-gray-100 rounded-xl p-3 flex items-center justify-between shadow-sm">
                          <div>
                              <p className="text-2xl font-bold text-brand-dark">{scoresInfo.earnedPts}</p>
-                             <p className="text-[10px] font-bold text-gray-400 uppercase">Pts. Acumulados</p>
+                             <p className="text-[10px] font-bold text-gray-400 uppercase">Puntos Checklist</p>
                          </div>
                          <div className="text-xs font-bold text-gray-300">/ {scoresInfo.totalPts}</div>
                      </div>
                  </div>
              </div>
 
+             {/* Checklist General */}
+             {checklistPreguntas.length > 0 && (
+                 <div className="mb-8 bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                     <div className="bg-brand-dark border-b border-brand-dark p-4 sm:p-5 flex items-center gap-3">
+                         <h3 className="text-lg font-bold text-white uppercase tracking-wide">Checklist General</h3>
+                     </div>
+                     <div className="p-4 sm:p-6 space-y-4">
+                         {checklistPreguntas.map((q, idx) => (
+                             <div key={q.id} className="p-4 rounded-xl border border-gray-100 bg-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                 <div className="flex items-start flex-1">
+                                     <div className="bg-gray-200 text-gray-600 text-xs font-bold px-2 py-0.5 rounded mr-3 mt-0.5">{idx + 1}</div>
+                                     <p className="text-sm font-medium text-gray-800">{q.pregunta}</p>
+                                 </div>
+                                 <div className="flex gap-2 shrink-0">
+                                     <button
+                                         onClick={() => setChecklistRespuestas(prev => ({...prev, [q.id]: true}))}
+                                         className={`flex-1 md:flex-none flex items-center justify-center px-4 py-2 rounded-lg font-bold text-sm transition-all border ${checklistRespuestas[q.id] === true ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                                     >
+                                         <CheckCircle className="w-4 h-4 mr-1.5" /> SÍ
+                                     </button>
+                                     <button
+                                         onClick={() => setChecklistRespuestas(prev => ({...prev, [q.id]: false}))}
+                                         className={`flex-1 md:flex-none flex items-center justify-center px-4 py-2 rounded-lg font-bold text-sm transition-all border ${checklistRespuestas[q.id] === false ? 'bg-red-500 text-white border-red-500 shadow-sm' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                                     >
+                                         <XCircle className="w-4 h-4 mr-1.5" /> NO
+                                     </button>
+                                 </div>
+                             </div>
+                         ))}
+                     </div>
+                 </div>
+             )}
+
              {/* Dynamic Form List */}
              <div className="space-y-6 sm:space-y-8">
                  {items.map((item, index) => {
-                     const itemTotalPts = item.subActivities.reduce((acc, sub) => acc + (sub.points || 0), 0);
-                     const itemEarnedPts = item.subActivities.filter(s => s.isCompleted).reduce((acc, sub) => acc + (sub.points || 0), 0);
-                     const itemProgress = itemTotalPts > 0 ? Math.round((itemEarnedPts / itemTotalPts) * 100) : 0;
-                     
                      return (
                          <div id={`activity-${item.id}`} key={item.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
                              <div className="bg-gray-50 border-b border-gray-200 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -896,20 +938,8 @@ export default function FormularioVisita() {
                                      <div className="text-[10px] font-bold text-brand-dark uppercase tracking-wider mb-1">Sección {index + 1}</div>
                                      <h3 className="text-base sm:text-lg font-bold text-gray-800">{item.title}</h3>
                                  </div>
-                                 <div className="flex items-center gap-4 shrink-0 bg-white px-3 py-1.5 rounded-lg border border-gray-100 shadow-sm">
-                                     <div className="text-right">
-                                         <div className="text-sm font-black text-brand-dark">{itemProgress}%</div>
-                                         <div className="text-[9px] text-gray-400 font-bold uppercase">{itemEarnedPts}/{itemTotalPts} pts</div>
-                                     </div>
-                                     <div className="w-12 h-12 relative">
-                                        {/* Circular Progress */}
-                                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                                            <path className="text-gray-100" strokeWidth="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                            <path className="text-brand-dark transition-all duration-500 ease-out" strokeWidth="4" strokeDasharray={`${itemProgress}, 100`} stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                        </svg>
-                                     </div>
-                                 </div>
                              </div>
+
 
                              <div className="p-4 sm:p-6 space-y-6">
                                  {item.subActivities.map((sub, sIdx) => (

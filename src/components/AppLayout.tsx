@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Menu, X, LayoutDashboard, Store, ClipboardList, BarChart3, Users, Settings, LogOut, ChevronDown, ChevronRight, Briefcase, CalendarPlus, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { supabase } from '../supabase';
 
 export default function AppLayout() {
   const { userData, user, role, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  
+
   
   // Track which accordion menus are open. By default, open if current route is inside.
   const isVisitasRoute = location.pathname.startsWith('/visitas');
@@ -20,23 +23,24 @@ export default function AppLayout() {
   };
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['administrador', 'coordinador', 'tecnico'] },
-    { name: 'Tiendas e Inventario', href: '/tiendas', icon: Store, roles: ['administrador', 'coordinador', 'tecnico'] },
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['administrador', 'tecnico'] },
+    { name: 'Tiendas e Inventario', href: '/tiendas', icon: Store, roles: ['administrador', 'tecnico'] },
     { 
       name: 'Gestión de Visitas', 
       icon: ClipboardList, 
-      roles: ['administrador', 'coordinador', 'tecnico'],
+      roles: ['administrador', 'tecnico'],
       subItems: [
-        { name: 'Mis Visitas', href: '/visitas/mis-visitas', icon: Briefcase, roles: ['tecnico', 'coordinador', 'administrador'] },
-        { name: 'Tabla de Visitas', href: '/visitas/tabla', icon: ClipboardList, roles: ['administrador', 'coordinador'] },
-        { name: 'Asignar Visita', href: '/visitas/asignar', icon: CalendarPlus, roles: ['administrador', 'coordinador'] },
-        { name: 'Solicitar Visita', href: '/visitas/solicitar', icon: CalendarPlus, roles: ['tecnico'] },
+        { name: 'Mis Visitas', href: '/visitas/mis-visitas', icon: Briefcase, roles: ['administrador', 'tecnico'] },
+        { name: 'Tabla de Visitas', href: '/visitas/tabla', icon: ClipboardList, roles: ['administrador', 'tecnico'] },
+        { name: 'Asignar Visita', href: '/visitas/asignar', icon: CalendarPlus, roles: ['administrador', 'tecnico'] },
+        { name: 'Solicitar Visita', href: '/visitas/solicitar', icon: CalendarPlus, roles: ['administrador', 'tecnico'] },
       ]
     },
-    { name: 'Reportes', href: '/reportes', icon: BarChart3, roles: ['administrador', 'coordinador'] },
-    { name: 'Preguntas (Componentes)', href: '/admin-preguntas', icon: ClipboardList, roles: ['administrador'] },
-    { name: 'Gestión Personal', href: '/personal', icon: Users, roles: ['administrador', 'coordinador'] },
-    { name: 'Mi Cuenta', href: '/cuenta', icon: Settings, roles: ['administrador', 'coordinador', 'tecnico'] },
+    { name: 'Reportes', href: '/reportes', icon: BarChart3, roles: ['administrador'] },
+
+    { name: 'Gestión Personal', href: '/personal', icon: Users, roles: ['administrador'] },
+    { name: 'Mi Cuenta', href: '/cuenta', icon: Settings, roles: ['administrador', 'tecnico'] },
+    { name: 'Configuración Gral', href: '/configuracion', icon: Settings, roles: ['administrador'] }
   ];
 
   const filteredNav = navigation.filter(item => role && item.roles.includes(role));
@@ -168,11 +172,11 @@ export default function AppLayout() {
           <div className="flex items-center space-x-3 mb-4 px-2">
              <div className="w-10 h-10 rounded-full bg-brand-hover flex items-center justify-center border border-white/20">
                 <span className="text-white font-bold text-sm">
-                  {userData?.nombre ? userData.nombre[0].toUpperCase() : user?.displayName ? user.displayName[0].toUpperCase() : 'U'}
+                  {userData?.nombre ? userData.nombre[0].toUpperCase() : user?.user_metadata?.full_name ? user.user_metadata.full_name[0].toUpperCase() : 'U'}
                 </span>
              </div>
              <div>
-                <p className="text-sm font-medium text-white truncate max-w-[140px]">{userData?.nombre || user?.displayName || 'Usuario'}</p>
+                <p className="text-sm font-medium text-white truncate max-w-[140px]">{userData?.nombre || user?.user_metadata?.full_name || 'Usuario'}</p>
                 <p className="text-xs text-gray-400 capitalize">{userData?.rol === 'tecnico' ? 'Técnico' : userData?.rol}</p>
              </div>
           </div>

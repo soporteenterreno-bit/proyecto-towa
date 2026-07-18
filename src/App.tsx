@@ -7,6 +7,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { NotificationProvider } from './context/NotificationContext';
 import Login from './pages/Login';
 import AppLayout from './components/AppLayout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -22,13 +23,15 @@ import SolicitarVisita from './pages/SolicitarVisita';
 import MisVisitas from './pages/MisVisitas';
 import TablaVisitas from './pages/TablaVisitas';
 import FormularioVisita from './pages/FormularioVisita';
-import AdminPreguntas from './pages/AdminPreguntas';
+
+import Configuracion from './pages/Configuracion';
 
 export default function App() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <Router>
+      <NotificationProvider>
+        <AuthProvider>
+          <Router>
           <Routes>
             <Route path="/login" element={<Login />} />
             
@@ -50,7 +53,7 @@ export default function App() {
               <Route 
                 path="visitas/mis-visitas" 
                 element={
-                  <ProtectedRoute allowedRoles={['tecnico', 'coordinador', 'administrador']}>
+                  <ProtectedRoute allowedRoles={['administrador', 'tecnico']}>
                     <MisVisitas />
                   </ProtectedRoute>
                 } 
@@ -59,7 +62,7 @@ export default function App() {
               <Route 
                 path="visitas/tabla" 
                 element={
-                  <ProtectedRoute allowedRoles={['administrador', 'coordinador']}>
+                  <ProtectedRoute allowedRoles={['administrador', 'tecnico']}>
                     <TablaVisitas />
                   </ProtectedRoute>
                 } 
@@ -68,7 +71,7 @@ export default function App() {
               <Route
                 path="visitas/asignar"
                 element={
-                  <ProtectedRoute allowedRoles={['administrador', 'coordinador']}>
+                  <ProtectedRoute allowedRoles={['administrador', 'tecnico']}>
                     <AsignarVisita />
                   </ProtectedRoute>
                 }
@@ -77,7 +80,7 @@ export default function App() {
               <Route
                 path="visitas/solicitar"
                 element={
-                  <ProtectedRoute allowedRoles={['tecnico']}>
+                  <ProtectedRoute allowedRoles={['administrador', 'tecnico']}>
                     <SolicitarVisita />
                   </ProtectedRoute>
                 }
@@ -89,15 +92,20 @@ export default function App() {
                 path="admin-preguntas" 
                 element={
                   <ProtectedRoute allowedRoles={['administrador']}>
-                    <AdminPreguntas />
+
                   </ProtectedRoute>
                 } 
               />
+              <Route path="configuracion" element={
+                <ProtectedRoute allowedRoles={['administrador']}>
+                  <Configuracion />
+                </ProtectedRoute>
+              } />
               
               <Route 
                 path="personal/*" 
                 element={
-                  <ProtectedRoute allowedRoles={['administrador', 'coordinador']}>
+                  <ProtectedRoute allowedRoles={['administrador']}>
                     <Personal />
                   </ProtectedRoute>
                 } 
@@ -108,6 +116,7 @@ export default function App() {
           </Routes>
         </Router>
       </AuthProvider>
+      </NotificationProvider>
     </ErrorBoundary>
   );
 }

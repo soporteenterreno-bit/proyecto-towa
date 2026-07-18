@@ -3,10 +3,16 @@ import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Edit2, Trash2, MapPin, Search, Package, Download, Upload, XCircle, Filter, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { PAISES_LATAM } from '../constants';
+import { usePaisesTiendas } from '../hooks/usePaisesTiendas';
+import { parseCsv } from '../utils/csv';
+import { useNotification } from '../context/NotificationContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function Tiendas() {
-  const { role } = useAuth();
+  usePageTitle('Tiendas');
+  const { showAlert, showConfirm } = useNotification();
+  const { userData, role } = useAuth();
+  const { paises } = usePaisesTiendas();
   const navigate = useNavigate();
   const [tiendas, setTiendas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -14,8 +20,8 @@ export default function Tiendas() {
   const [editingTienda, setEditingTienda] = useState<any>(null);
   
   const [formData, setFormData] = useState({
-    codigo_tienda: '', pais: '', ciudad: '', region: '', establecimiento_cc: '', direccion: '', referencia: '', estatus: 'Tienda Activa',
-    correos_tienda: '', coord_lat: '', coord_lng: ''
+    id_tienda: '', tienda: '', provincia_tienda: '', ciudad_tienda: '', municipio_tienda: '', domicilio_tienda: '', pais_tienda: userData?.pais || '', telefono_tienda: '', correo_tienda: '', estatus: 'Tienda Activa',
+    coord_lat: '', coord_lng: ''
   });
   
   // Filtering States
@@ -44,15 +50,13 @@ export default function Tiendas() {
   useEffect(() => { fetchTiendas(); }, []);
 
   const buildTiendaData = () => {
-    const { correos_tienda, coord_lat, coord_lng, ...rest } = formData;
+    const { coord_lat, coord_lng, ...rest } = formData;
     const data: any = {
       ...rest,
-      correos_tienda: correos_tienda
-        ? correos_tienda.split(',').map((e: string) => e.trim()).filter(Boolean)
-        : [],
+      id_tienda: parseInt(rest.id_tienda as string, 10)
     };
     if (coord_lat && coord_lng) {
-      data.coordenadas = { lat: parseFloat(coord_lat), lng: parseFloat(coord_lng) };
+      data.coordenadas_tienda = { lat: parseFloat(coord_lat), lng: parseFloat(coord_lng) };
     }
     return data;
   };
@@ -69,35 +73,37 @@ export default function Tiendas() {
       }
       setIsModalOpen(false);
       fetchTiendas();
-    } catch (e) { console.error(e); alert("Error guardando tienda"); }
+      showAlert("Tienda guardada exitosamente", "success");
+    } catch (e) { console.error(e); showAlert("Error guardando tienda", "error"); }
   };
 
   const handleDelete = async (id: string) => {
-    if (role === 'tecnico' || !window.confirm("¿Eliminar tienda?")) return;
+    if (role === 'tecnico' || !(await showConfirm("¿Eliminar tienda?"))) return;
     try {
       await supabase.from('tiendas').delete().eq('id', id);
       fetchTiendas();
-    } catch (e) { console.error(e); }
+      showAlert("Tienda eliminada", "success");
+    } catch (e) { console.error(e); showAlert("Error al eliminar tienda", "error"); }
   };
 
   // Helper arrays for cascaded dropdowns based on existing stores (not all generic ones to avoid empty lists)
-  const uniqueCountriesFilter = Array.from(new Set(tiendas.map(t => t.pais))).filter(Boolean).sort();
+  const uniqueCountriesFilter = Array.from(new Set(tiendas.map(t => t.pais_tienda))).filter(Boolean).sort();
   const uniqueCitiesFilter = filterCountry 
-    ? Array.from(new Set(tiendas.filter(t => t.pais === filterCountry).map(t => t.ciudad))).filter(Boolean).sort()
+    ? Array.from(new Set(tiendas.filter(t => t.pais_tienda === filterCountry).map(t => t.ciudad_tienda))).filter(Boolean).sort()
     : [];
 
   const filteredTiendas = tiendas.filter(t => {
     const term = globalSearch.toLowerCase();
+    const tiendaDisplay = t.tienda || t.domicilio_tienda || ('Tienda ' + t.id_tienda);
     const matchesSearch = !globalSearch || (
-      (t.codigo_tienda || '').toLowerCase().includes(term) ||
-      (t.pais || '').toLowerCase().includes(term) ||
-      (t.ciudad || '').toLowerCase().includes(term) ||
-      (t.region || '').toLowerCase().includes(term) ||
-      (t.establecimiento_cc || '').toLowerCase().includes(term) ||
-      (t.direccion || '').toLowerCase().includes(term)
+      (t.id_tienda?.toString() || '').toLowerCase().includes(term) ||
+      (t.pais_tienda || '').toLowerCase().includes(term) ||
+      (t.ciudad_tienda || '').toLowerCase().includes(term) ||
+      (tiendaDisplay).toLowerCase().includes(term) ||
+      (t.domicilio_tienda || '').toLowerCase().includes(term)
     );
-    const matchesCountry = !filterCountry || t.pais === filterCountry;
-    const matchesCity = !filterCity || t.ciudad === filterCity;
+    const matchesCountry = !filterCountry || t.pais_tienda === filterCountry;
+    const matchesCity = !filterCity || t.ciudad_tienda === filterCity;
     
     return matchesSearch && matchesCountry && matchesCity;
   });
@@ -109,24 +115,23 @@ export default function Tiendas() {
   };
 
   const downloadCSV = () => {
-    const headers = ["ID", "Código", "País", "Ciudad", "Región", "Establecimiento/Centro Comercial", "Dirección", "Referencia", "Estatus", "Correos", "Latitud", "Longitud"];
+    const headers = ["ID Tienda", "Tienda", "Provincia", "Ciudad", "Municipio", "Domicilio", "País", "Coordenadas", "Teléfono", "Correo", "Estatus"];
     const csvRows = [headers.join(",")];
 
     filteredTiendas.forEach(t => {
-        const correos = Array.isArray(t.correos_tienda) ? t.correos_tienda.join('; ') : (t.correos_tienda || '');
+        const coords = t.coordenadas_tienda ? `${t.coordenadas_tienda.lat},${t.coordenadas_tienda.lng}` : '';
         const row = [
-            `"${t.id}"`,
-            `"${t.codigo_tienda || ''}"`,
-            `"${t.pais || ''}"`,
-            `"${t.ciudad || ''}"`,
-            `"${t.region || ''}"`,
-            `"${t.establecimiento_cc || ''}"`,
-            `"${t.direccion || ''}"`,
-            `"${t.referencia || ''}"`,
-            `"${t.estatus || ''}"`,
-            `"${correos}"`,
-            `"${t.coordenadas?.lat || ''}"`,
-            `"${t.coordenadas?.lng || ''}"`
+            `"${t.id_tienda || ''}"`,
+            `"${t.tienda || ''}"`,
+            `"${t.provincia_tienda || ''}"`,
+            `"${t.ciudad_tienda || ''}"`,
+            `"${t.municipio_tienda || ''}"`,
+            `"${t.domicilio_tienda || ''}"`,
+            `"${t.pais_tienda || ''}"`,
+            `"${coords}"`,
+            `"${t.telefono_tienda || ''}"`,
+            `"${t.correo_tienda || ''}"`,
+            `"${t.estatus || ''}"`
         ];
         csvRows.push(row.join(","));
     });
@@ -152,37 +157,36 @@ export default function Tiendas() {
     reader.onload = async (event) => {
       try {
         const text = event.target?.result as string;
-        const rows = text.split('\n').map(row => row.trim()).filter(row => row);
+        const rows = parseCsv(text);
         if (rows.length < 2) {
-          alert('El archivo no contiene datos válidos.');
+          showAlert('El archivo no contiene datos válidos.', 'error');
           return;
         }
 
         const toInsert = [];
         let importedCount = 0;
         
-        // Loop over rows starting from 1 (ignore header)
         for(let i = 1; i < rows.length; i++) {
-           const cols = rows[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-           // Requires at least codigo, pais, ciudad, establecimiento, direccion
-           if(cols.length >= 6) {
-             const correoRaw = cols[9] || '';
-             const correos = correoRaw ? correoRaw.split(';').map((e: string) => e.trim()).filter(Boolean) : [];
-             const lat = cols[10] ? parseFloat(cols[10]) : NaN;
-             const lng = cols[11] ? parseFloat(cols[11]) : NaN;
+           const cols = rows[i];
+           if(cols.length >= 7) {
+             const idNum = parseInt(cols[0], 10);
+             if(isNaN(idNum)) continue;
              const tiendaData: any = {
-                 codigo_tienda: cols[0] || '',
-                 pais: cols[1] || '',
-                 ciudad: cols[2] || '',
-                 region: cols[3] || '',
-                 establecimiento_cc: cols[4] || '',
-                 direccion: cols[5] || '',
-                 referencia: cols[6] || '',
-                 estatus: cols[7] || 'Tienda Activa',
-                 correos_tienda: correos,
+                 id_tienda: idNum,
+                 tienda: cols[1] || '',
+                 provincia_tienda: cols[2] || '',
+                 ciudad_tienda: cols[3] || '',
+                 municipio_tienda: cols[4] || '',
+                 domicilio_tienda: cols[5] || '',
+                 pais_tienda: cols[6] || '',
+                 telefono_tienda: cols[8] || '',
+                 correo_tienda: cols[9] || '',
+                 estatus: 'Tienda Activa',
              };
-             if (!isNaN(lat) && !isNaN(lng)) {
-               tiendaData.coordenadas = { lat, lng };
+             const coordsRaw = cols[7] || '';
+             const parts = coordsRaw.split(/[;,]/).map(p => parseFloat(p.trim()));
+             if (parts.length === 2 && parts.every(n => !isNaN(n))) {
+               tiendaData.coordenadas_tienda = { lat: parts[0], lng: parts[1] };
              }
              toInsert.push(tiendaData);
              importedCount++;
@@ -190,18 +194,18 @@ export default function Tiendas() {
         }
         
         if (toInsert.length > 0) {
-           const { error } = await supabase.from('tiendas').insert(toInsert);
+           const { error } = await supabase.from('tiendas').upsert(toInsert, { onConflict: 'id_tienda' });
            if (error) throw error;
            
-           alert(`Se importaron ${importedCount} tiendas exitosamente.`);
+           showAlert(`Se importaron ${importedCount} tiendas exitosamente.`, 'success');
            fetchTiendas();
         } else {
-           alert('No se encontraron filas con el formato mínimo requerido.');
+           showAlert('No se encontraron filas con el formato mínimo requerido.', 'warning');
         }
 
       } catch (err) {
         console.error(err);
-        alert('Ocurrió un error al procesar el archivo CSV.');
+        showAlert('Ocurrió un error al procesar el archivo CSV.', 'error');
       } finally {
         setShowImportModal(false);
         setImporting(false);
@@ -209,7 +213,7 @@ export default function Tiendas() {
       }
     };
     reader.onerror = () => {
-      alert('Hubo un error al leer el archivo.');
+      showAlert('Hubo un error al leer el archivo.', 'error');
       setImporting(false);
       setShowImportModal(false);
     };
@@ -262,7 +266,7 @@ export default function Tiendas() {
 
           {role !== 'tecnico' && (
             <button 
-              onClick={() => { setEditingTienda(null); setFormData({codigo_tienda: '', pais: '', ciudad: '', region: '', establecimiento_cc: '', direccion: '', referencia: '', estatus: 'Tienda Activa', correos_tienda: '', coord_lat: '', coord_lng: ''}); setIsModalOpen(true); }}
+              onClick={() => { setEditingTienda(null); setFormData({id_tienda: '', tienda: '', provincia_tienda: '', ciudad_tienda: '', municipio_tienda: '', domicilio_tienda: '', pais_tienda: '', telefono_tienda: '', correo_tienda: '', estatus: 'Tienda Activa', coord_lat: '', coord_lng: ''}); setIsModalOpen(true); }}
               className="flex items-center px-4 py-2 bg-brand-dark text-white rounded-xl hover:bg-brand-hover transition-colors whitespace-nowrap text-sm font-semibold shadow-sm"
             >
               <Plus className="w-5 h-5 md:mr-2" /> <span className="hidden md:inline">Nueva</span>
@@ -304,67 +308,81 @@ export default function Tiendas() {
                 <table className="w-full text-left border-collapse min-w-max relative">
                 <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="p-4 text-sm font-semibold text-gray-600">Código</th>
+                    <th className="p-4 text-sm font-semibold text-gray-600">ID Tienda</th>
                     <th className="p-4 text-sm font-semibold text-gray-600">País</th>
-                    <th className="p-4 text-sm font-semibold text-gray-600">Ciudad / Región</th>
-                    <th className="p-4 text-sm font-semibold text-gray-600 w-1/3">Establecimiento & Dirección</th>
+                    <th className="p-4 text-sm font-semibold text-gray-600">Nombre de Tienda</th>
+                    <th className="p-4 text-sm font-semibold text-gray-600">Domicilio</th>
+                    <th className="p-4 text-sm font-semibold text-gray-600">Ciudad</th>
+                    <th className="p-4 text-sm font-semibold text-gray-600">Provincia</th>
                     <th className="p-4 text-sm font-semibold text-gray-600">Estatus</th>
                     <th className="p-4 text-sm font-semibold text-gray-600 text-center sticky right-0 bg-gray-50 z-10 border-l border-gray-200 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {filteredTiendas.map((tienda) => (
-                    <tr key={tienda.id} className="border-b border-gray-100 group">
-                        <td className="p-4 font-mono text-sm group-hover:bg-gray-50 transition-colors">{tienda.codigo_tienda}</td>
-                        <td className="p-4 group-hover:bg-gray-50 transition-colors">
-                          <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-gray text-brand-dark border border-brand-dark/15">
-                            {tienda.pais || '—'}
-                          </span>
-                        </td>
-                        <td className="p-4 group-hover:bg-gray-50 transition-colors">
-                           <div className="flex items-center text-gray-800 font-medium">
-                               <MapPin className="w-4 h-4 mr-1 text-gray-400 flex-shrink-0" />
-                               {tienda.ciudad}
-                               {tienda.coordenadas?.lat ? (
-                                 <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-700" title={`GPS: ${tienda.coordenadas.lat}, ${tienda.coordenadas.lng}`}>GPS ✓</span>
-                               ) : (
-                                 <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-400">Sin GPS</span>
-                               )}
-                           </div>
-                           <div className="text-xs text-gray-500 mt-1">{tienda.region}</div>
-                        </td>
-                        <td className="p-4 group-hover:bg-gray-50 transition-colors">
-                           <div className="text-sm font-semibold text-gray-700">{tienda.establecimiento_cc}</div>
-                           <div className="text-xs text-gray-500 mt-1 truncate max-w-sm" title={tienda.direccion}>{tienda.direccion}</div>
-                        </td>
-                        <td className="p-4 group-hover:bg-gray-50 transition-colors">
-                            <span className={`px-2 py-1 inline-block text-[10px] sm:text-xs font-semibold rounded-full uppercase tracking-wider ${
-                                tienda.estatus === 'Tienda Activa' ? 'bg-green-100 text-green-800' :
-                                tienda.estatus === 'Tienda Existente' ? 'bg-blue-100 text-blue-800' :
-                                tienda.estatus === 'Tienda No Existe' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
-                            }`}>
-                                {tienda.estatus || 'Sin estatus'}
+                    {filteredTiendas.map((tienda) => {
+                      const tiendaDisplay = tienda.tienda || '—';
+                      return (
+                      <tr key={tienda.id} className="border-b border-gray-100 group hover:shadow-md transition-all">
+                          <td className="p-4 font-mono text-sm group-hover:bg-brand-dark group-hover:text-white transition-colors">{tienda.id_tienda}</td>
+                          <td className="p-4 group-hover:bg-brand-dark transition-colors">
+                            <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-gray text-brand-dark group-hover:bg-white group-hover:text-brand-dark border border-brand-dark/15 transition-colors">
+                              {tienda.pais_tienda || userData?.pais || '—'}
                             </span>
-                        </td>
-                        <td className="p-4 text-center space-x-1 sticky right-0 bg-white group-hover:bg-gray-50 z-10 border-l border-gray-100 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)] transition-colors">
-                           <button onClick={() => navigate(`/tiendas/${tienda.id}/inventario`)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg inline-flex" title="Ver Inventario Físico">
-                             <Package className="w-5 h-5" />
-                           </button>
-                           {role !== 'tecnico' && (
-                             <>
-                                <button onClick={() => { setEditingTienda(tienda); setFormData({...tienda, estatus: tienda.estatus || 'Tienda Activa', correos_tienda: Array.isArray(tienda.correos_tienda) ? tienda.correos_tienda.join(', ') : (tienda.correos_tienda || ''), coord_lat: tienda.coordenadas?.lat?.toString() || '', coord_lng: tienda.coordenadas?.lng?.toString() || ''}); setIsModalOpen(true); }} className="p-2 text-gray-500 hover:text-brand-dark hover:bg-gray-100 rounded-lg inline-flex" title="Editar">
-                                    <Edit2 className="w-5 h-5" />
-                                </button>
-                                <button onClick={() => handleDelete(tienda.id)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg inline-flex" title="Eliminar">
-                                    <Trash2 className="w-5 h-5" />
-                                </button>
-                             </>
-                           )}
-                        </td>
-                    </tr>
-                    ))}
+                          </td>
+                          <td className="p-4 group-hover:bg-brand-dark transition-colors">
+                            <div className="text-sm font-semibold text-gray-700 group-hover:text-white transition-colors">{tiendaDisplay}</div>
+                          </td>
+                          <td className="p-4 group-hover:bg-brand-dark transition-colors">
+                            <div className="text-xs text-gray-600 group-hover:text-gray-200 truncate max-w-[200px] transition-colors" title={tienda.domicilio_tienda}>{tienda.domicilio_tienda || '—'}</div>
+                            {tienda.coordenadas_tienda?.lat && (
+                              <div className="mt-1"><span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-700 group-hover:bg-green-500 group-hover:text-white transition-colors" title={`GPS: ${tienda.coordenadas_tienda.lat}, ${tienda.coordenadas_tienda.lng}`}>GPS ✓</span></div>
+                            )}
+                          </td>
+                          <td className="p-4 group-hover:bg-brand-dark transition-colors">
+                            <div className="text-sm text-gray-700 font-medium group-hover:text-white transition-colors">{tienda.ciudad_tienda || '—'}</div>
+                          </td>
+                          <td className="p-4 group-hover:bg-brand-dark transition-colors">
+                            <div className="text-sm text-gray-600 group-hover:text-gray-200 transition-colors">{tienda.provincia_tienda || '—'}</div>
+                            {tienda.municipio_tienda && <div className="text-xs text-gray-400 group-hover:text-gray-300 mt-0.5 transition-colors">{tienda.municipio_tienda}</div>}
+                          </td>
+                          <td className="p-4 group-hover:bg-brand-dark transition-colors">
+                              <span className={`px-2 py-1 inline-block text-[10px] sm:text-xs font-semibold rounded-full uppercase tracking-wider transition-colors ${
+                                  tienda.estatus === 'Tienda Activa' ? 'bg-green-100 text-green-800 group-hover:bg-green-500 group-hover:text-white' :
+                                  tienda.estatus === 'Tienda Existente' ? 'bg-blue-100 text-blue-800 group-hover:bg-blue-500 group-hover:text-white' :
+                                  tienda.estatus === 'Tienda No Existe' ? 'bg-red-100 text-red-800 group-hover:bg-red-500 group-hover:text-white' : 'bg-gray-100 text-gray-800 group-hover:bg-white group-hover:text-gray-800'
+                              }`}>
+                                  {tienda.estatus || 'Sin estatus'}
+                              </span>
+                          </td>
+                          <td className="p-4 text-center space-x-1 sticky right-0 bg-white group-hover:bg-brand-dark z-10 border-l border-gray-100 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)] transition-colors">
+                            <button onClick={() => navigate(`/tiendas/${tienda.id}/inventario`)} className="p-2 text-indigo-600 hover:bg-white/20 group-hover:text-white rounded-lg inline-flex transition-colors" title="Ver Inventario Físico">
+                              <Package className="w-5 h-5" />
+                            </button>
+                            {role !== 'tecnico' && (
+                              <>
+                                  <button onClick={() => { 
+                                      setEditingTienda(tienda); 
+                                      setFormData({
+                                          ...tienda, 
+                                          estatus: tienda.estatus || 'Tienda Activa',
+                                          coord_lat: tienda.coordenadas_tienda?.lat?.toString() || '', 
+                                          coord_lng: tienda.coordenadas_tienda?.lng?.toString() || ''
+                                      }); 
+                                      setIsModalOpen(true); 
+                                  }} className="p-2 text-gray-500 hover:bg-white/20 group-hover:text-white rounded-lg inline-flex transition-colors" title="Editar">
+                                      <Edit2 className="w-5 h-5" />
+                                  </button>
+                                  <button onClick={() => handleDelete(tienda.id)} className="p-2 text-gray-500 hover:bg-red-500 hover:text-white group-hover:text-red-200 rounded-lg inline-flex transition-colors" title="Eliminar">
+                                      <Trash2 className="w-5 h-5" />
+                                  </button>
+                              </>
+                            )}
+                          </td>
+                      </tr>
+                      );
+                    })}
                     {filteredTiendas.length === 0 && (
-                        <tr><td colSpan={6} className="p-8 text-center text-gray-500">No se encontraron tiendas que coincidan con la búsqueda.</td></tr>
+                        <tr><td colSpan={8} className="p-8 text-center text-gray-500">No se encontraron tiendas que coincidan con la búsqueda.</td></tr>
                     )}
                 </tbody>
                 </table>
@@ -375,29 +393,32 @@ export default function Tiendas() {
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl relative overflow-y-auto max-h-[90vh]">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl relative overflow-y-auto max-h-[90vh]">
                 <h3 className="text-xl font-bold mb-4">{editingTienda ? 'Editar Tienda' : 'Nueva Tienda'}</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <div><label className="block text-sm font-medium mb-1">Código</label><input required value={formData.codigo_tienda} onChange={e=>setFormData({...formData, codigo_tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium mb-1">País</label>
-                            <select required value={formData.pais} onChange={e=>setFormData({...formData, pais: e.target.value})} className="w-full border p-2 rounded-lg bg-white">
-                                <option value="">Selecciona País...</option>
-                                {PAISES_LATAM.map(p => <option key={p} value={p}>{p}</option>)}
-                            </select>
-                        </div>
-                        <div><label className="block text-sm font-medium mb-1">Ciudad</label><input required value={formData.ciudad} onChange={e=>setFormData({...formData, ciudad: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
+                      <div><label className="block text-sm font-medium mb-1">ID Tienda</label><input type="number" required value={formData.id_tienda} onChange={e=>setFormData({...formData, id_tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
+                      <div>
+                          <label className="block text-sm font-medium mb-1">País</label>
+                          <select required value={formData.pais_tienda} onChange={e=>setFormData({...formData, pais_tienda: e.target.value})} className="w-full border p-2 rounded-lg bg-white">
+                              <option value="">Selecciona País...</option>
+                              {paises.map(p => <option key={p} value={p}>{p}</option>)}
+                          </select>
+                      </div>
                     </div>
-                    <div><label className="block text-sm font-medium mb-1">Región</label><input value={formData.region} onChange={e=>setFormData({...formData, region: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
-                    <div><label className="block text-sm font-medium mb-1">Centro Comercial / Establecimiento</label><input required value={formData.establecimiento_cc} onChange={e=>setFormData({...formData, establecimiento_cc: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
-                    <div><label className="block text-sm font-medium mb-1">Dirección Exacta</label><textarea required value={formData.direccion} onChange={e=>setFormData({...formData, direccion: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
-                    <div><label className="block text-sm font-medium mb-1">Referencia</label><input value={formData.referencia} onChange={e=>setFormData({...formData, referencia: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
-
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Correos de la Tienda</label>
-                        <input value={formData.correos_tienda} onChange={e=>setFormData({...formData, correos_tienda: e.target.value})} placeholder="correo1@towa.com, correo2@towa.com" className="w-full border p-2 rounded-lg text-sm" />
-                        <p className="text-xs text-gray-400 mt-1">Separar múltiples correos con coma</p>
+                    <div><label className="block text-sm font-medium mb-1">Nombre Tienda</label><input value={formData.tienda} onChange={e=>setFormData({...formData, tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div><label className="block text-sm font-medium mb-1">Provincia</label><input value={formData.provincia_tienda} onChange={e=>setFormData({...formData, provincia_tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
+                        <div><label className="block text-sm font-medium mb-1">Ciudad</label><input value={formData.ciudad_tienda} onChange={e=>setFormData({...formData, ciudad_tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
+                    </div>
+                    <div><label className="block text-sm font-medium mb-1">Municipio</label><input value={formData.municipio_tienda} onChange={e=>setFormData({...formData, municipio_tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
+                    
+                    <div><label className="block text-sm font-medium mb-1">Domicilio</label><textarea required value={formData.domicilio_tienda} onChange={e=>setFormData({...formData, domicilio_tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div><label className="block text-sm font-medium mb-1">Teléfono</label><input value={formData.telefono_tienda} onChange={e=>setFormData({...formData, telefono_tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
+                        <div><label className="block text-sm font-medium mb-1">Correo</label><input value={formData.correo_tienda} onChange={e=>setFormData({...formData, correo_tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -457,24 +478,19 @@ function ImportCSVModal({ isOpen, onClose, onConfirm, importing, fileInputRef, o
         </p>
 
         <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 sm:p-5 mb-6 text-sm text-gray-700">
-           <p className="font-bold text-gray-800 mb-2">Columnas esperadas (8):</p>
-           <ol className="list-decimal pl-5 space-y-1 mb-4">
-             <li><span className="font-semibold text-brand-dark">Código</span> (Texto)</li>
-             <li><span className="font-semibold text-brand-dark">País</span> (Texto Ej: Peru)</li>
+           <p className="font-bold text-gray-800 mb-2">Columnas esperadas (10):</p>
+           <ol className="list-decimal pl-5 space-y-1 mb-4 text-xs">
+             <li><span className="font-semibold text-brand-dark">ID Tienda</span> (Numérico)</li>
+             <li><span className="font-semibold text-brand-dark">Tienda</span> (Texto)</li>
+             <li><span className="font-semibold text-brand-dark">Provincia</span> (Texto)</li>
              <li><span className="font-semibold text-brand-dark">Ciudad</span> (Texto)</li>
-             <li><span className="font-semibold text-brand-dark">Región</span> (Texto)</li>
-             <li><span className="font-semibold text-brand-dark">Establecimiento</span> (Texto)</li>
-             <li><span className="font-semibold text-brand-dark">Dirección</span> (Texto)</li>
-             <li><span className="font-semibold text-brand-dark">Referencia</span> (Texto)</li>
+             <li><span className="font-semibold text-brand-dark">Municipio</span> (Texto)</li>
+             <li><span className="font-semibold text-brand-dark">Domicilio</span> (Texto)</li>
+             <li><span className="font-semibold text-brand-dark">País</span> (Texto)</li>
+             <li><span className="font-semibold text-brand-dark">Teléfono</span> (Texto)</li>
+             <li><span className="font-semibold text-brand-dark">Correo</span> (Texto)</li>
              <li><span className="font-semibold text-brand-dark">Estatus</span> (Texto Ej: Tienda Activa)</li>
            </ol>
-           
-           <div className="mt-4">
-             <p className="font-bold text-gray-800 mb-1">Ejemplo de Fila:</p>
-             <div className="bg-gray-800 text-green-400 font-mono text-xs p-3 rounded-xl overflow-x-auto whitespace-nowrap">
-                T-001,Peru,Lima,Lima Sur,Plaza Lima,Av Principal 123,Frente al parque,Tienda Activa
-             </div>
-           </div>
         </div>
 
         <div className="flex flex-col-reverse sm:flex-row justify-end sm:space-x-3 gap-3 sm:gap-0 mt-8">
@@ -494,7 +510,6 @@ function ImportCSVModal({ isOpen, onClose, onConfirm, importing, fileInputRef, o
            </button>
         </div>
 
-        {/* Hidden File Input */}
         <input 
            type="file" 
            accept=".csv" 

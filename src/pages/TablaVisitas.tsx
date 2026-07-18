@@ -4,17 +4,28 @@ import { useAuth } from '../context/AuthContext';
 import { Clock, Play, CheckCircle, FileText, Search, MapPin, CalendarCheck, Filter, XCircle, Edit } from 'lucide-react';
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useNotification } from '../context/NotificationContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function TablaVisitas() {
-  const { user, role } = useAuth();
+  usePageTitle('Tabla de Visitas');
+  const { showAlert } = useNotification();
+  const { user, role, userData } = useAuth();
   const [visitas, setVisitas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filters
   const [showFilters, setShowFilters] = useState(false);
+  const [filterPais, setFilterPais] = useState(userData?.pais || '');
   const [filterStore, setFilterStore] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
+
+  useEffect(() => {
+    if (userData?.pais && filterPais === '') {
+      setFilterPais(userData.pais);
+    }
+  }, [userData]);
 
   // Reassignment / Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -42,7 +53,7 @@ export default function TablaVisitas() {
       if (error) throw error;
 
       const enhancedVisitas = await Promise.all((visitasData || []).map(async (v: any) => {
-           let tiendaData: Record<string, any> = { codigo_tienda: '?', establecimiento_cc: '?', ciudad: '?', pais: '?' };
+           let tiendaData: Record<string, any> = { id_tienda: '?', tienda: '?', ciudad_tienda: '?', pais_tienda: '?' };
            let tecnicoData: Record<string, any> = { nombre: '?' };
 
            try {
@@ -98,7 +109,7 @@ export default function TablaVisitas() {
     try {
         const { data: allUsers } = await supabase.from('users').select('*');
         if (allUsers) {
-            const filteredTechs = allUsers.filter(u => u.rol === 'tecnico' && u.pais === v.tienda.pais);
+            const filteredTechs = allUsers.filter(u => u.rol === 'tecnico' && u.pais === v.tienda.pais_tienda);
             setAvailableTecnicos(filteredTechs);
         }
     } catch(e) {
@@ -110,7 +121,7 @@ export default function TablaVisitas() {
       if (!selectedVisita) return;
       
       if (editData.fecha_programada < getMinDate()) {
-          return alert("La fecha de la visita no puede ser en el pasado.");
+          return showAlert("La fecha de la visita no puede ser en el pasado.", "warning");
       }
 
       setSavingReassignment(true);
@@ -124,19 +135,22 @@ export default function TablaVisitas() {
           
           setIsEditModalOpen(false);
           await fetchVisitas(); // Refresh the full list
+          showAlert("Visita editada exitosamente", "success");
       } catch (e) {
           console.error(e);
-          alert('Error al editar visita');
+          showAlert('Error al editar visita', 'error');
       } finally {
           setSavingReassignment(false);
       }
   };
 
-  const uniqueStores = Array.from(new Set(visitas.map(v => v.tienda.establecimiento_cc))).filter(Boolean).sort();
+  const uniqueStores = Array.from(new Set(visitas.map(v => v.tienda.tienda))).filter(Boolean).sort();
+  const uniqueCountries = Array.from(new Set(visitas.map(v => v.tienda.pais_tienda))).filter(Boolean).sort();
 
   const filteredVisitas = visitas.filter(v => {
       if (filterStatus !== 'ALL' && v.status !== filterStatus) return false;
-      if (filterStore && v.tienda.establecimiento_cc !== filterStore) return false;
+      if (filterPais && v.tienda.pais_tienda !== filterPais) return false;
+      if (filterStore && v.tienda.tienda !== filterStore) return false;
       if (dateRange.start || dateRange.end) {
           const visitDate = parseISO(v.fecha_programada);
           const start = dateRange.start ? startOfDay(parseISO(dateRange.start)) : new Date('2000-01-01');
@@ -149,6 +163,7 @@ export default function TablaVisitas() {
   const clearFilters = () => {
       setFilterStatus('ALL');
       setFilterStore('');
+      setFilterPais('');
       setDateRange({ start: '', end: '' });
   };
 
@@ -162,7 +177,7 @@ export default function TablaVisitas() {
         <div className="flex space-x-2 w-full sm:w-auto">
             <button 
                onClick={() => setShowFilters(!showFilters)}
-               className={`flex items-center w-full justify-center sm:w-auto px-4 py-2 border rounded-xl transition-colors whitespace-nowrap text-sm font-semibold shadow-sm ${showFilters || filterStore || filterStatus !== 'ALL' || dateRange.start || dateRange.end ? 'bg-brand-gray border-brand-dark text-brand-dark' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+               className={`flex items-center w-full justify-center sm:w-auto px-4 py-2 border rounded-xl transition-colors whitespace-nowrap text-sm font-semibold shadow-sm ${showFilters || filterStore || filterPais || filterStatus !== 'ALL' || dateRange.start || dateRange.end ? 'bg-brand-gray border-brand-dark text-brand-dark' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}
             >
                <Filter className="w-5 h-5 mr-2" /> Filtros Avanzados
             </button>
@@ -171,7 +186,7 @@ export default function TablaVisitas() {
 
       {showFilters && (
           <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-brand-dark/20 animate-in fade-in slide-in-from-top-2">
-             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                  <div>
                     <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Estado</label>
                     <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="w-full text-sm border border-gray-300 p-2.5 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none bg-white">
@@ -179,6 +194,14 @@ export default function TablaVisitas() {
                         <option value="Pendiente">Pendiente</option>
                         <option value="En Curso">En Curso</option>
                         <option value="Completada">Completada</option>
+                    </select>
+                 </div>
+                 
+                 <div>
+                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">País</label>
+                    <select value={filterPais} onChange={e => setFilterPais(e.target.value)} className="w-full text-sm border border-gray-300 p-2.5 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none bg-white">
+                        <option value="">Cualquier país</option>
+                        {uniqueCountries.map(pais => <option key={pais as string} value={pais as string}>{pais as string}</option>)}
                     </select>
                  </div>
                  
@@ -202,7 +225,7 @@ export default function TablaVisitas() {
              </div>
              
              <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
-                <button onClick={clearFilters} disabled={filterStatus === 'ALL' && !filterStore && !dateRange.start && !dateRange.end} className="flex flex-1 sm:flex-none items-center justify-center px-4 py-2.5 text-sm text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed font-medium transition-colors">
+                <button onClick={clearFilters} disabled={filterStatus === 'ALL' && !filterStore && !filterPais && !dateRange.start && !dateRange.end} className="flex flex-1 sm:flex-none items-center justify-center px-4 py-2.5 text-sm text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed font-medium transition-colors">
                     <XCircle className="w-4 h-4 mr-2"/> Limpiar Filtros
                 </button>
              </div>
@@ -218,6 +241,7 @@ export default function TablaVisitas() {
                     <thead>
                         <tr className="bg-gray-50 border-b border-gray-200">
                             <th className="p-4 text-sm font-semibold text-gray-600">Fecha Prog.</th>
+                            <th className="p-4 text-sm font-semibold text-gray-600">País</th>
                             <th className="p-4 text-sm font-semibold text-gray-600">Tienda de Destino</th>
                             <th className="p-4 text-sm font-semibold text-gray-600">Tipo de Visita</th>
                             <th className="p-4 text-sm font-semibold text-gray-600">Técnico Asignado</th>
@@ -234,9 +258,12 @@ export default function TablaVisitas() {
                                         {format(new Date(v.fecha_programada), "dd/MMM/yyyy", {locale: es}).toUpperCase()}
                                     </div>
                                 </td>
+                                <td className="p-4 text-sm font-medium text-gray-800">
+                                    {v.tienda.pais_tienda}
+                                </td>
                                 <td className="p-4 max-w-xs">
-                                    <h3 className="text-sm font-bold text-gray-800 truncate" title={`${v.tienda.codigo_tienda} - ${v.tienda.establecimiento_cc}`}>{v.tienda.codigo_tienda} - {v.tienda.establecimiento_cc}</h3>
-                                    <p className="text-xs text-gray-500 flex items-center mt-1"><MapPin className="w-3 h-3 mr-1 text-gray-400"/> {v.tienda.ciudad}, {v.tienda.pais}</p>
+                                    <h3 className="text-sm font-bold text-gray-800 truncate" title={`${v.tienda.id_tienda} - ${v.tienda.tienda}`}>{v.tienda.id_tienda} - {v.tienda.tienda}</h3>
+                                    <p className="text-xs text-gray-500 flex items-center mt-1"><MapPin className="w-3 h-3 mr-1 text-gray-400"/> {v.tienda.ciudad_tienda}</p>
                                 </td>
                                 <td className="p-4">
                                     <span className={`text-xs font-bold uppercase tracking-wider px-2 py-1 rounded inline-block ${v.tipo === 'Falla' ? 'bg-red-50 text-red-600' : 'bg-brand-gray text-brand-dark'}`}>
@@ -273,7 +300,7 @@ export default function TablaVisitas() {
                         ))}
                         {filteredVisitas.length === 0 && (
                             <tr>
-                                <td colSpan={6} className="p-12 text-center text-gray-500">
+                                <td colSpan={7} className="p-12 text-center text-gray-500">
                                     <div className="flex flex-col items-center justify-center">
                                         <Search className="w-10 h-10 text-gray-300 mb-3" />
                                         <p>No se encontraron visitas registradas con los filtros actuales.</p>
@@ -301,7 +328,7 @@ export default function TablaVisitas() {
                <div className="mb-6">
                  <h2 className="text-xl font-bold text-gray-800">Editar Visita</h2>
                  <p className="text-sm text-gray-500 mt-1">
-                   Visita a <strong>{selectedVisita.tienda.establecimiento_cc}</strong> ({selectedVisita.tienda.pais})
+                   Visita a <strong>{selectedVisita.tienda.tienda}</strong> ({selectedVisita.tienda.pais_tienda})
                  </p>
                </div>
 
@@ -319,7 +346,7 @@ export default function TablaVisitas() {
 
                    <div>
                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                           Técnico ({selectedVisita.tienda.pais})
+                           Técnico ({selectedVisita.tienda.pais_tienda})
                        </label>
                        <select
                            value={editData.tecnico_uid}

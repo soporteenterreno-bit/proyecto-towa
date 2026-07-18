@@ -60,7 +60,7 @@ export default function Dashboard() {
         // Chart Data: Tiendas por Pais
         const paisesMap: any = {};
         tiendasList.forEach(t => {
-            paisesMap[t.pais] = (paisesMap[t.pais] || 0) + 1;
+            paisesMap[t.pais_tienda] = (paisesMap[t.pais_tienda] || 0) + 1;
         });
         const formattedChart = Object.keys(paisesMap).map(p => ({
             name: p || 'Sin Asignar',
@@ -84,7 +84,7 @@ export default function Dashboard() {
           <div className="bg-brand-dark p-6 sm:p-8 rounded-3xl shadow-lg relative overflow-hidden mb-8">
               <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center">
                   <div>
-                      <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">¡Bienvenido de nuevo, {userData.nombre.split(' ')[0]}!</h1>
+                      <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">¡Bienvenido de nuevo, {userData.nombre ? userData.nombre.split(' ')[0] : 'Usuario'}!</h1>
                       <p className="text-white/80 text-sm sm:text-base">Has iniciado sesión como <span className="font-bold text-white capitalize">{userData.rol === 'tecnico' ? 'Técnico' : userData.rol}</span>. Aquí está el resumen de la operación.</p>
                   </div>
               </div>

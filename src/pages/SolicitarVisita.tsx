@@ -3,8 +3,12 @@ import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Calendar, MapPin } from 'lucide-react';
+import { useNotification } from '../context/NotificationContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function SolicitarVisita() {
+  usePageTitle('Solicitar Visita');
+  const { showAlert } = useNotification();
   const { user, userData } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -23,7 +27,7 @@ export default function SolicitarVisita() {
   useEffect(() => {
     if (!paisTecnico) return;
     const fetchTiendas = async () => {
-      const { data } = await supabase.from('tiendas').select('*').eq('pais', paisTecnico);
+      const { data } = await supabase.from('tiendas').select('*').eq('pais_tienda', paisTecnico);
       if (data) setTiendas(data);
     };
     fetchTiendas();
@@ -40,15 +44,15 @@ export default function SolicitarVisita() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.id_tienda || !formData.fecha_programada) return alert('Selecciona una tienda y una fecha.');
-    if (formData.tipo === 'Falla' && !formData.tt_number) return alert('Para visitas de Falla es obligatorio el Número de TT.');
-    if (formData.fecha_programada < getMinDate()) return alert('La fecha de la visita debe ser posterior a hoy.');
+    if (!formData.id_tienda || !formData.fecha_programada) return showAlert('Selecciona una tienda y una fecha.', 'warning');
+    if (formData.tipo === 'Falla' && !formData.tt_number) return showAlert('Para visitas de Falla es obligatorio el Número de TT.', 'warning');
+    if (formData.fecha_programada < getMinDate()) return showAlert('La fecha de la visita debe ser posterior a hoy.', 'warning');
 
     setLoading(true);
     try {
       const { error } = await supabase.from('visitas').insert({
         tipo: formData.tipo,
-        tecnico_uid: user?.uid,
+        tecnico_uid: user?.id,
         coordinador_uid: null,
         id_tienda: formData.id_tienda,
         status: 'Pendiente',
@@ -58,11 +62,11 @@ export default function SolicitarVisita() {
         createdAt: new Date().toISOString()
       });
       if (error) throw error;
-      alert('Visita registrada exitosamente');
+      showAlert('Visita registrada exitosamente', 'success');
       navigate('/visitas/mis-visitas');
     } catch (error) {
       console.error(error);
-      alert('Error al registrar la visita');
+      showAlert('Error al registrar la visita', 'error');
     } finally {
       setLoading(false);
     }
@@ -157,7 +161,7 @@ export default function SolicitarVisita() {
                 <option value="">Selecciona una tienda...</option>
                 {tiendas.map(t => (
                   <option key={t.id} value={t.id}>
-                    {t.codigo_tienda} — {t.establecimiento_cc} ({t.ciudad})
+                    {t.id_tienda} — {t.tienda} ({t.ciudad_tienda})
                   </option>
                 ))}
               </select>

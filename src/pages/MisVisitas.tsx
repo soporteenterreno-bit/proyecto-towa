@@ -5,8 +5,12 @@ import { useNavigate } from 'react-router-dom';
 import { Clock, Play, CheckCircle, FileText, Search, MapPin, CalendarCheck, Filter, XCircle, UserPlus } from 'lucide-react';
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useNotification } from '../context/NotificationContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function MisVisitas() {
+  usePageTitle('Mis Visitas');
+  const { showAlert } = useNotification();
   const { user, role, userData } = useAuth();
   const navigate = useNavigate();
   const [visitas, setVisitas] = useState<any[]>([]);
@@ -24,18 +28,14 @@ export default function MisVisitas() {
       if (!user) return;
       try {
         // 1. Visitas asignadas al técnico actual
-        const { data: assignedSnap } = await supabase.from('visitas').select('*').eq('tecnico_uid', user.uid);
+        const { data: assignedSnap } = await supabase.from('visitas').select('*').eq('tecnico_uid', user.id);
 
         // 2. Visitas pendientes sin técnico asignado (para auto-asignación en su país)
         const { data: unassignedSnap } = await supabase.from('visitas').select('*').eq('status', 'Pendiente').is('tecnico_uid', null);
 
-        // También visitas pendientes donde tecnico_uid es string vacío
-        const { data: unassignedEmptySnap } = await supabase.from('visitas').select('*').eq('status', 'Pendiente').eq('tecnico_uid', '');
-
         const allDocs = [
           ...(assignedSnap || []),
-          ...(unassignedSnap || []),
-          ...(unassignedEmptySnap || [])
+          ...(unassignedSnap || [])
         ];
 
         // Deduplicate by id
@@ -46,7 +46,7 @@ export default function MisVisitas() {
 
         // Enhance with tienda data
         const enhanced = await Promise.all(visitasRaw.map(async (v: any) => {
-          let tiendaData: Record<string, any> = { codigo_tienda: '?', establecimiento_cc: '?', ciudad: '?', pais: '' };
+          let tiendaData: Record<string, any> = { id_tienda: '?', tienda: '?', ciudad_tienda: '?', pais_tienda: '' };
           try {
             const { data: tSnap } = await supabase.from('tiendas').select('*').eq('id', v.id_tienda).single();
             if (tSnap) tiendaData = tSnap;
@@ -57,9 +57,9 @@ export default function MisVisitas() {
         // Filtrar visitas sin asignar que no son del país del técnico
         const userPais = userData?.pais || '';
         const filtered = enhanced.filter(v => {
-          if (v.tecnico_uid === user.uid) return true; // siempre ver las propias
+          if (v.tecnico_uid === user.id) return true; // siempre ver las propias
           // Sin asignar: solo mostrar si la tienda es del país del técnico
-          return userPais && v.tienda.pais === userPais;
+          return userPais && v.tienda.pais_tienda === userPais;
         });
 
         filtered.sort((a, b) => new Date(b.fecha_programada).getTime() - new Date(a.fecha_programada).getTime());
@@ -73,14 +73,14 @@ export default function MisVisitas() {
     fetchVisitas();
   }, [user, role, userData]);
 
-  const uniqueStores = Array.from(new Set(visitas.map(v => v.tienda.establecimiento_cc))).filter(Boolean).sort();
+  const uniqueStores = Array.from(new Set(visitas.map(v => v.tienda.tienda))).filter(Boolean).sort();
 
   const filteredVisitas = visitas.filter(v => {
       // Filter by Status
       if (filterStatus !== 'ALL' && v.status !== filterStatus) return false;
       
       // Filter by Store
-      if (filterStore && v.tienda.establecimiento_cc !== filterStore) return false;
+      if (filterStore && v.tienda.tienda !== filterStore) return false;
 
       // Filter by Date Range
       if (dateRange.start || dateRange.end) {
@@ -115,11 +115,11 @@ export default function MisVisitas() {
     if (!user) return;
     setAssigning(visitaId);
     try {
-      await supabase.from('visitas').update({ tecnico_uid: user.uid }).eq('id', visitaId);
-      setVisitas(prev => prev.map(v => v.id === visitaId ? { ...v, tecnico_uid: user.uid } : v));
+      await supabase.from('visitas').update({ tecnico_uid: user.id }).eq('id', visitaId);
+      setVisitas(prev => prev.map(v => v.id === visitaId ? { ...v, tecnico_uid: user.id } : v));
     } catch(e) {
       console.error(e);
-      alert('Error al asignarte la visita. Verifica que siga disponible.');
+      showAlert('Error al asignarte la visita. Verifica que siga disponible.', 'error');
     } finally {
       setAssigning(null);
     }
@@ -220,8 +220,8 @@ export default function MisVisitas() {
                                     <div className="text-xs text-gray-500 mt-1 ml-6">{format(new Date(v.fecha_programada), "EEEE", {locale: es})}</div>
                                 </td>
                                 <td className="p-4">
-                                    <h3 className="text-sm font-bold text-gray-800">{v.tienda.codigo_tienda} - {v.tienda.establecimiento_cc}</h3>
-                                    <p className="text-xs text-gray-500 flex items-center mt-1"><MapPin className="w-3 h-3 mr-1 text-gray-400"/> {v.tienda.ciudad}</p>
+                                    <h3 className="text-sm font-bold text-gray-800">{v.tienda.id_tienda} - {v.tienda.tienda}</h3>
+                                    <p className="text-xs text-gray-500 flex items-center mt-1"><MapPin className="w-3 h-3 mr-1 text-gray-400"/> {v.tienda.ciudad_tienda}</p>
                                 </td>
                                 <td className="p-4">
                                     <span className={`text-xs font-bold uppercase tracking-wider px-2 py-1 rounded inline-block ${v.tipo === 'Falla' ? 'bg-red-50 text-red-600' : 'bg-brand-gray text-brand-dark'}`}>
@@ -231,19 +231,19 @@ export default function MisVisitas() {
                                 </td>
                                 <td className="p-4">
                                     <div className="mb-1">{getStatusBadge(v.status)}</div>
-                                    {v.tecnico_uid !== user?.uid && (
+                                    {v.tecnico_uid !== user?.id && (
                                       <div className="mt-1">
                                         <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Disponible en tu país</span>
                                       </div>
                                     )}
-                                    {v.ponderacion_final !== undefined && v.ponderacion_final !== null && v.tecnico_uid === user?.uid && (
+                                    {v.ponderacion_final !== undefined && v.ponderacion_final !== null && v.tecnico_uid === user?.id && (
                                         <div className={`text-xs font-semibold flex items-center mt-2 ${v.status === 'Completada' ? 'text-brand-dark' : 'text-blue-600'}`}>
                                             <FileText className="w-3 h-3 mr-1" /> {v.status === 'Completada' ? 'Calificación:' : 'Progreso:'} {v.ponderacion_final}%
                                         </div>
                                     )}
                                 </td>
                                 <td className="p-4 text-center sticky right-0 bg-white group-hover:bg-gray-50 z-10 border-l border-gray-100 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)] transition-colors">
-                                    {v.tecnico_uid !== user?.uid && v.status === 'Pendiente' ? (
+                                    {v.tecnico_uid !== user?.id && v.status === 'Pendiente' ? (
                                       <button
                                         onClick={() => handleSelfAssign(v.id)}
                                         disabled={assigning === v.id}
