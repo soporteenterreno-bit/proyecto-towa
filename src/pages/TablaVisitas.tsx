@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { Clock, Play, CheckCircle, FileText, Search, MapPin, CalendarCheck, Filter, XCircle, Edit } from 'lucide-react';
+import { CustomSelect } from '../components/CustomSelect';
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useNotification } from '../context/NotificationContext';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { parseSafeDate } from '../utils/date';
 
 export default function TablaVisitas() {
   usePageTitle('Tabla de Visitas');
@@ -189,28 +191,43 @@ export default function TablaVisitas() {
              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                  <div>
                     <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Estado</label>
-                    <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="w-full text-sm border border-gray-300 p-2.5 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none bg-white">
-                        <option value="ALL">Todas las visitas</option>
-                        <option value="Pendiente">Pendiente</option>
-                        <option value="En Curso">En Curso</option>
-                        <option value="Completada">Completada</option>
-                    </select>
+                    <CustomSelect 
+                        value={filterStatus} 
+                        onChange={(val: string) => setFilterStatus(val)} 
+                        options={[
+                            { value: 'ALL', label: 'Todas las visitas' },
+                            { value: 'Pendiente', label: 'Pendiente' },
+                            { value: 'En Curso', label: 'En Curso' },
+                            { value: 'Completada', label: 'Completada' }
+                        ]}
+                        className="w-full text-sm border border-gray-300 p-2.5 rounded-xl bg-white focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none"
+                    />
                  </div>
                  
                  <div>
                     <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">País</label>
-                    <select value={filterPais} onChange={e => setFilterPais(e.target.value)} className="w-full text-sm border border-gray-300 p-2.5 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none bg-white">
-                        <option value="">Cualquier país</option>
-                        {uniqueCountries.map(pais => <option key={pais as string} value={pais as string}>{pais as string}</option>)}
-                    </select>
+                    <CustomSelect 
+                        value={filterPais} 
+                        onChange={(val: string) => setFilterPais(val)} 
+                        options={[
+                            { value: '', label: 'Cualquier país' },
+                            ...uniqueCountries.map(pais => ({ value: pais as string, label: pais as string }))
+                        ]}
+                        className="w-full text-sm border border-gray-300 p-2.5 rounded-xl bg-white focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none"
+                    />
                  </div>
                  
                  <div>
                     <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Tienda / Establecimiento</label>
-                    <select value={filterStore} onChange={e => setFilterStore(e.target.value)} className="w-full text-sm border border-gray-300 p-2.5 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none bg-white">
-                        <option value="">Cualquier tienda</option>
-                        {uniqueStores.map(store => <option key={store as string} value={store as string}>{store as string}</option>)}
-                    </select>
+                    <CustomSelect 
+                        value={filterStore} 
+                        onChange={(val: string) => setFilterStore(val)} 
+                        options={[
+                            { value: '', label: 'Cualquier tienda' },
+                            ...uniqueStores.map(store => ({ value: store as string, label: store as string }))
+                        ]}
+                        className="w-full text-sm border border-gray-300 p-2.5 rounded-xl bg-white focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none"
+                    />
                  </div>
 
                  <div>
@@ -255,7 +272,7 @@ export default function TablaVisitas() {
                                 <td className="p-4">
                                     <div className="flex items-center text-gray-800 font-medium whitespace-nowrap">
                                         <CalendarCheck className="w-4 h-4 mr-2 text-gray-400" />
-                                        {format(new Date(v.fecha_programada), "dd/MMM/yyyy", {locale: es}).toUpperCase()}
+                                        {format(parseSafeDate(v.fecha_programada), "dd/MMM/yyyy", {locale: es}).toUpperCase()}
                                     </div>
                                 </td>
                                 <td className="p-4 text-sm font-medium text-gray-800">
@@ -348,32 +365,30 @@ export default function TablaVisitas() {
                        <label className="block text-sm font-medium text-gray-700 mb-1">
                            Técnico ({selectedVisita.tienda.pais_tienda})
                        </label>
-                       <select
+                       <CustomSelect
                            value={editData.tecnico_uid}
-                           onChange={(e) => setEditData({...editData, tecnico_uid: e.target.value})}
+                           onChange={(val: string) => setEditData({...editData, tecnico_uid: val})}
+                           options={[
+                               { value: '', label: '— Sin asignar (Pool) —' },
+                               ...availableTecnicos.map(tech => ({ value: tech.id, label: `${tech.nombre} (${tech.id.substring(0,6)})` }))
+                           ]}
                            className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-brand-hover outline-none"
-                       >
-                           <option value="">— Sin asignar (Pool) —</option>
-                           {availableTecnicos.map(tech => (
-                               <option key={tech.id} value={tech.id}>
-                                   {tech.nombre} ({tech.id.substring(0,6)})
-                               </option>
-                           ))}
-                       </select>
+                       />
                    </div>
 
                    <div>
                        <label className="block text-sm font-medium text-gray-700 mb-1">Prioridad</label>
-                       <select
+                       <CustomSelect
                            value={editData.prioridad}
-                           onChange={(e) => setEditData({...editData, prioridad: e.target.value})}
+                           onChange={(val: string) => setEditData({...editData, prioridad: val})}
+                           options={[
+                               { value: 'Baja', label: 'Baja' },
+                               { value: 'Media', label: 'Media' },
+                               { value: 'Alta', label: 'Alta' },
+                               { value: 'Urgente', label: 'Urgente' }
+                           ]}
                            className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-brand-hover outline-none"
-                       >
-                           <option value="Baja">Baja</option>
-                           <option value="Media">Media</option>
-                           <option value="Alta">Alta</option>
-                           <option value="Urgente">Urgente</option>
-                       </select>
+                       />
                    </div>
 
                    <div>

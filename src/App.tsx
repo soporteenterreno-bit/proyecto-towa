@@ -92,7 +92,7 @@ export default function App() {
                 path="admin-preguntas" 
                 element={
                   <ProtectedRoute allowedRoles={['administrador']}>
-
+                    <></>
                   </ProtectedRoute>
                 } 
               />

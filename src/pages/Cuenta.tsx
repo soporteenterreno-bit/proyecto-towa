@@ -5,6 +5,7 @@ import { Save, User, Phone, MapPin, Briefcase } from 'lucide-react';
 import { Country } from 'country-state-city';
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
+import { CustomSelect } from '../components/CustomSelect';
 import { useNotification } from '../context/NotificationContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 
@@ -139,18 +140,16 @@ export default function Cuenta() {
                 <MapPin className="w-4 h-4 mr-2 text-brand-dark" />
                 País
               </label>
-              <select
-                name="pais"
-                required
+              <CustomSelect
                 value={formData.pais}
-                onChange={handleChange}
+                onChange={(val: string) => setFormData({...formData, pais: val})}
+                options={[
+                  { value: '', label: 'Selecciona un país' },
+                  ...allCountries.map(p => ({ value: p, label: p }))
+                ]}
                 className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-brand-hover focus:border-transparent outline-none transition-all"
-              >
-                <option value="">Selecciona un país</option>
-                {allCountries.map(p => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
+                required
+              />
             </div>
 
             <div className="space-y-2 md:col-span-2">

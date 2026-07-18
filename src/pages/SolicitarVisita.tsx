@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Calendar, MapPin } from 'lucide-react';
+import { Calendar, MapPin, ClipboardList, Send, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { CustomSelect } from '../components/CustomSelect';
 import { useNotification } from '../context/NotificationContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 
@@ -152,19 +153,16 @@ export default function SolicitarVisita() {
 
             <div className="col-span-1 md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Tienda a Visitar</label>
-              <select
-                required
+              <CustomSelect
                 value={formData.id_tienda}
-                onChange={e => setFormData({...formData, id_tienda: e.target.value})}
+                onChange={(val: string) => setFormData({...formData, id_tienda: val})}
+                options={[
+                    { value: '', label: 'Selecciona una tienda...' },
+                    ...tiendas.map(t => ({ value: t.id, label: `${t.id_tienda} — ${t.tienda} (${t.ciudad_tienda})` }))
+                ]}
                 className="w-full border-gray-300 border p-2.5 rounded-xl bg-white focus:ring-brand-dark focus:border-brand-dark"
-              >
-                <option value="">Selecciona una tienda...</option>
-                {tiendas.map(t => (
-                  <option key={t.id} value={t.id}>
-                    {t.id_tienda} — {t.tienda} ({t.ciudad_tienda})
-                  </option>
-                ))}
-              </select>
+                required
+              />
               {tiendas.length === 0 && (
                 <p className="text-xs text-amber-600 mt-1">No hay tiendas registradas para {paisTecnico}.</p>
               )}

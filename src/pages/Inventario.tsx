@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase';
 import { Plus, Edit2, Trash2, ArrowLeft, Monitor, Wifi, Zap, Printer } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCategoriasInventario } from '../hooks/useCategoriasInventario';
 import { useNotification } from '../context/NotificationContext';
 import { usePageTitle } from '../hooks/usePageTitle';
+
+import { CustomSelect } from '../components/CustomSelect';
 
 export default function Inventario() {
   usePageTitle('Inventario');
@@ -19,7 +21,7 @@ export default function Inventario() {
   const [editingItem, setEditingItem] = useState<any>(null);
   
   const [formData, setFormData] = useState({
-    id_componente: '', categoria_componente: '', subcategoria_componente: '', marca: '', modelo: '', serial: '', estado_fisico: 'Bueno', status_componente: 'Operativo'
+    id_componente: '', categoria_componente: '', subcategoria_componente: '', marca: '', modelo: '', serial: '', estado_fisico: 'Bueno', estado_operativo: 'Operativo'
   });
 
   const { categorias, loadingCategorias } = useCategoriasInventario();
@@ -49,14 +51,19 @@ export default function Inventario() {
     e.preventDefault();
     try {
       if (editingItem) {
-        await supabase.from('inventario').update(formData).eq('id', editingItem.id);
+        const { error } = await supabase.from('inventario').update(formData).eq('id', editingItem.id);
+        if (error) throw error;
       } else {
-        await supabase.from('inventario').insert({ ...formData, id_tienda: tiendaId });
+        const { error } = await supabase.from('inventario').insert({ ...formData, id_tienda: tiendaId });
+        if (error) throw error;
       }
       setIsModalOpen(false);
       fetchInventario();
       showAlert("Componente guardado exitosamente", "success");
-    } catch (e) { console.error(e); showAlert("Error guardando componente", "error"); }
+    } catch (e: any) { 
+      console.error(e); 
+      showAlert(`Error guardando componente: ${e.message || ''}`, "error"); 
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -93,7 +100,7 @@ export default function Inventario() {
             Total activos: <span className="text-brand-dark font-bold text-lg ml-1">{inventario.length}</span>
          </div>
          <button 
-            onClick={() => { setEditingItem(null); setFormData({id_componente: '', categoria_componente: '', subcategoria_componente: '', marca: '', modelo: '', serial: '', estado_fisico: 'Bueno', status_componente: 'Operativo'}); setIsModalOpen(true); }}
+            onClick={() => { setEditingItem(null); setFormData({id_componente: '', categoria_componente: '', subcategoria_componente: '', marca: '', modelo: '', serial: '', estado_fisico: 'Bueno', estado_operativo: 'Operativo'}); setIsModalOpen(true); }}
             className="flex items-center px-4 py-2 bg-brand-dark text-white rounded-xl hover:bg-brand-hover transition-colors"
          >
             <Plus className="w-5 h-5 mr-2" /> Agregar Item
@@ -120,7 +127,7 @@ export default function Inventario() {
                 <div className="space-y-2 text-sm">
                    <div className="flex justify-between"><span className="text-gray-500">ID / Serial:</span><span className="font-mono bg-gray-50 px-2 rounded border border-gray-100 text-xs">{item.id_componente || '—'} / {item.serial || '—'}</span></div>
                    <div className="flex justify-between"><span className="text-gray-500">Estado Físico:</span><span className={item.estado_fisico?.includes('Malo') ? 'text-red-500 font-medium' : 'text-gray-700'}>{item.estado_fisico}</span></div>
-                   <div className="flex justify-between"><span className="text-gray-500">Operatividad:</span><span className={item.status_componente === 'Operativo' ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>{item.status_componente}</span></div>
+                   <div className="flex justify-between"><span className="text-gray-500">Operatividad:</span><span className={item.estado_operativo === 'Operativo' ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>{item.estado_operativo}</span></div>
                 </div>
              </div>
           ))
@@ -131,50 +138,66 @@ export default function Inventario() {
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl relative mt-10">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl relative mt-10">
                 <h3 className="text-xl font-bold mb-4">{editingItem ? 'Editar Componente' : 'Nuevo Componente'}</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4">
                         <div>
                            <label className="block text-sm font-medium mb-1">Categoría</label>
-                           <select required value={formData.categoria_componente} onChange={e=>setFormData({...formData, categoria_componente: e.target.value, subcategoria_componente: ''})} className="w-full border p-2 rounded-lg bg-white">
-                              <option value="">Selecciona...</option>
-                              {categorias.map(c => <option key={c.nombre} value={c.nombre}>{c.nombre}</option>)}
-                           </select>
+                           <CustomSelect 
+                              value={formData.categoria_componente} 
+                              onChange={(val: string) => setFormData({...formData, categoria_componente: val, subcategoria_componente: ''})} 
+                              options={categorias.map(c => ({ value: c.nombre, label: c.nombre }))}
+                              className="w-full border p-2 rounded-lg bg-white text-sm"
+                              required
+                           />
                         </div>
                         <div>
                            <label className="block text-sm font-medium mb-1">Componente</label>
-                           <select value={formData.subcategoria_componente} onChange={e=>setFormData({...formData, subcategoria_componente: e.target.value})} className="w-full border p-2 rounded-lg bg-white" disabled={!formData.categoria_componente}>
-                              <option value="">Selecciona...</option>
-                              {componentes.filter(comp => comp.categoria_id === categorias.find(c => c.nombre === formData.categoria_componente)?.id).map((comp: any) => <option key={comp.id} value={comp.name}>{comp.name}</option>)}
-                           </select>
+                           <CustomSelect 
+                              value={formData.subcategoria_componente} 
+                              onChange={(val: string) => setFormData({...formData, subcategoria_componente: val})} 
+                              options={componentes.filter(comp => comp.categoria_id === categorias.find(c => c.nombre === formData.categoria_componente)?.id).map((comp: any) => ({ value: comp.name, label: comp.name }))}
+                              disabled={!formData.categoria_componente}
+                              className={`w-full border p-2 rounded-lg text-sm ${!formData.categoria_componente ? 'bg-gray-50' : 'bg-white'}`}
+                           />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-sm font-medium mb-1">ID Componente (Registro)</label><input required value={formData.id_componente} onChange={e=>setFormData({...formData, id_componente: e.target.value})} className="w-full border p-2 rounded-lg font-mono text-sm" /></div>
-                        <div><label className="block text-sm font-medium mb-1">Número de Serie</label><input value={formData.serial} onChange={e=>setFormData({...formData, serial: e.target.value})} className="w-full border p-2 rounded-lg font-mono text-sm" /></div>
+                        <div><label className="block text-sm font-medium mb-1">ID Componente (Registro)</label><input required value={formData.id_componente} onChange={e=>setFormData({...formData, id_componente: e.target.value})} className="w-full border p-2 rounded-lg font-mono text-sm truncate" /></div>
+                        <div><label className="block text-sm font-medium mb-1">Número de Serie</label><input value={formData.serial} onChange={e=>setFormData({...formData, serial: e.target.value})} className="w-full border p-2 rounded-lg font-mono text-sm truncate" /></div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-sm font-medium mb-1">Marca</label><input required value={formData.marca} onChange={e=>setFormData({...formData, marca: e.target.value})} placeholder="Ej: Fortinet" className="w-full border p-2 rounded-lg" /></div>
-                        <div><label className="block text-sm font-medium mb-1">Modelo</label><input required value={formData.modelo} onChange={e=>setFormData({...formData, modelo: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
+                        <div><label className="block text-sm font-medium mb-1">Marca</label><input required value={formData.marca} onChange={e=>setFormData({...formData, marca: e.target.value})} placeholder="Ej: Fortinet" className="w-full border p-2 rounded-lg truncate" /></div>
+                        <div><label className="block text-sm font-medium mb-1">Modelo</label><input required value={formData.modelo} onChange={e=>setFormData({...formData, modelo: e.target.value})} className="w-full border p-2 rounded-lg truncate" /></div>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-4 pt-2">
                         <div>
                             <label className="block text-sm font-medium mb-1">Estado Físico</label>
-                            <select value={formData.estado_fisico} onChange={e=>setFormData({...formData, estado_fisico: e.target.value})} className="w-full border p-2 rounded-lg bg-white">
-                                <option>Bueno (Limpio/Sin daños)</option>
-                                <option>Regular (Sucio/Desgaste)</option>
-                                <option>Malo (Daños visibles)</option>
-                            </select>
+                            <CustomSelect 
+                                value={formData.estado_fisico} 
+                                onChange={(val: string) => setFormData({...formData, estado_fisico: val})} 
+                                options={[
+                                  { value: 'Bueno (Limpio/Sin daños)', label: 'Bueno (Limpio/Sin daños)' },
+                                  { value: 'Regular (Sucio/Desgaste)', label: 'Regular (Sucio/Desgaste)' },
+                                  { value: 'Malo (Daños visibles)', label: 'Malo (Daños visibles)' }
+                                ]}
+                                className="w-full border p-2 rounded-lg bg-white text-sm"
+                            />
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Condición Operativa</label>
-                            <select value={formData.status_componente} onChange={e=>setFormData({...formData, status_componente: e.target.value})} className="w-full border p-2 rounded-lg bg-white">
-                                <option>Operativo</option>
-                                <option>Falla Parcial</option>
-                                <option>Inoperativo</option>
-                            </select>
+                            <CustomSelect 
+                                value={formData.estado_operativo} 
+                                onChange={(val: string) => setFormData({...formData, estado_operativo: val})} 
+                                options={[
+                                  { value: 'Operativo', label: 'Operativo' },
+                                  { value: 'Falla Parcial', label: 'Falla Parcial' },
+                                  { value: 'Inoperativo', label: 'Inoperativo' }
+                                ]}
+                                className="w-full border p-2 rounded-lg bg-white text-sm"
+                            />
                         </div>
                     </div>
                     

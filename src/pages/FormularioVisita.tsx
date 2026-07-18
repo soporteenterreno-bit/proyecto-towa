@@ -9,6 +9,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useNotification } from '../context/NotificationContext';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { parseSafeDate } from '../utils/date';
 
 const programadaActivities = [
   {
@@ -518,7 +519,7 @@ export default function FormularioVisita() {
           pdf.text(`Jefe Inmediato: ${visita.tecnicoInfo?.jefeInfo?.nombre || visita.tecnicoInfo?.jefe_inmediato || 'No asignado'}`, 110, currentY);
           
           currentY += 6;
-          pdf.text(`Fecha Programada: ${format(new Date(visita.fecha_programada), "dd/MM/yyyy")}`, 15, currentY);
+          pdf.text(`Fecha Programada: ${format(parseSafeDate(visita.fecha_programada), "dd/MM/yyyy")}`, 15, currentY);
           pdf.text(`Área: ${visita.tecnicoInfo?.area_trabajo || 'General'}`, 110, currentY);
           
           currentY += 6;
@@ -819,7 +820,7 @@ export default function FormularioVisita() {
                      <div className="flex items-start">
                          <Calendar className="w-4 h-4 text-brand-dark mr-3 shrink-0 mt-0.5" />
                          <div className="space-y-1">
-                             <p className="text-sm text-gray-800 font-medium">Prog: {format(new Date(visita.fecha_programada), "dd/MMM/yyyy", {locale: es}).toUpperCase()}</p>
+                             <p className="text-sm text-gray-800 font-medium">Prog: {format(parseSafeDate(visita.fecha_programada), "dd/MMM/yyyy", {locale: es}).toUpperCase()}</p>
                              {visita.fecha_inicio && (
                                <p className="text-[10px] sm:text-xs text-emerald-700 font-semibold flex items-center">
                                  <LogIn className="w-3 h-3 mr-1"/>Entrada: {format(new Date(visita.fecha_inicio), "dd/MM/yy - HH:mm")}
@@ -1000,10 +1001,17 @@ export default function FormularioVisita() {
                                          </div>
                                          
                                          {!isCompleted && isOwner && (
-                                             <div>
+                                             <div className="flex space-x-2">
+                                                 <div className="md:hidden">
+                                                     <input type="file" accept="image/*" capture="environment" id={`camera-${item.id}`} className="hidden" onChange={(e) => handleImageUpload(e, item.id)} />
+                                                     <label htmlFor={`camera-${item.id}`} className="cursor-pointer inline-flex items-center px-4 py-2 bg-brand-dark text-white text-sm font-bold rounded-xl hover:bg-brand-hover transition-colors shadow-sm">
+                                                         <Camera className="w-4 h-4 mr-2" /> <span>Cámara</span>
+                                                     </label>
+                                                 </div>
+
                                                  <input type="file" accept="image/*" multiple id={`file-${item.id}`} className="hidden" onChange={(e) => handleImageUpload(e, item.id)} />
-                                                 <label htmlFor={`file-${item.id}`} className="cursor-pointer inline-flex items-center px-4 py-2 bg-brand-gray text-brand-dark text-sm font-bold rounded-xl hover:bg-brand-hover hover:text-white transition-colors border border-brand-dark/10">
-                                                     <UploadCloud className="w-4 h-4 mr-2" /> Subir Fotos
+                                                 <label htmlFor={`file-${item.id}`} className="cursor-pointer inline-flex items-center px-4 py-2 bg-brand-gray text-brand-dark text-sm font-bold rounded-xl hover:bg-gray-200 transition-colors border border-brand-dark/10">
+                                                     <UploadCloud className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Subir Fotos</span><span className="md:hidden">Galería</span>
                                                  </label>
                                              </div>
                                          )}

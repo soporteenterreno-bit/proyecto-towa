@@ -7,6 +7,7 @@ import { sendVisitNotificationEmail } from '../utils/emailService';
 import { usePaisesTiendas } from '../hooks/usePaisesTiendas';
 import { useNotification } from '../context/NotificationContext';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { CustomSelect } from '../components/CustomSelect';
 
 export default function AsignarVisita() {
   usePageTitle('Asignar Visita');
@@ -235,10 +236,16 @@ export default function AsignarVisita() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">País Target</label>
-              <select required value={formData.pais} onChange={e=>setFormData({...formData, pais: e.target.value, id_tienda: '', tecnico_uid: ''})} className="w-full border-gray-300 border p-2.5 rounded-xl bg-white focus:ring-brand-dark focus:border-brand-dark">
-                <option value="">Selecciona País...</option>
-                {paises.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
+              <CustomSelect 
+                value={formData.pais} 
+                onChange={(val: string) => setFormData({...formData, pais: val, id_tienda: '', tecnico_uid: ''})} 
+                options={[
+                  { value: '', label: 'Selecciona País...' },
+                  ...paises.map(p => ({ value: p, label: p }))
+                ]}
+                className="w-full border-gray-300 border p-2.5 rounded-xl bg-white focus:ring-brand-dark focus:border-brand-dark"
+                required
+              />
             </div>
 
             <div>
@@ -248,30 +255,49 @@ export default function AsignarVisita() {
 
             <div className="col-span-1 md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Tienda a Visitar</label>
-              <select required disabled={!formData.pais} value={formData.id_tienda} onChange={e=>setFormData({...formData, id_tienda: e.target.value})} className="w-full border-gray-300 border p-2.5 rounded-xl bg-white focus:ring-brand-dark focus:border-brand-dark disabled:bg-gray-100 disabled:text-gray-400">
-                <option value="">{formData.pais ? 'Selecciona una tienda...' : 'Primero selecciona un país'}</option>
-                {tiendasFiltradas.map(t => <option key={t.id} value={t.id}>{t.id_tienda} - {t.tienda} ({t.ciudad_tienda})</option>)}
-              </select>
+              <CustomSelect 
+                value={formData.id_tienda} 
+                onChange={(val: string) => setFormData({...formData, id_tienda: val})} 
+                disabled={!formData.pais}
+                options={[
+                  { value: '', label: formData.pais ? 'Selecciona una tienda...' : 'Primero selecciona un país' },
+                  ...tiendasFiltradas.map(t => ({ value: t.id, label: `${t.id_tienda} - ${t.tienda} (${t.ciudad_tienda})` }))
+                ]}
+                className="w-full border-gray-300 border p-2.5 rounded-xl bg-white focus:ring-brand-dark focus:border-brand-dark disabled:bg-gray-100 disabled:text-gray-400"
+                required
+              />
             </div>
 
             <div className="col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Técnico Asignado <span className="text-gray-400 font-normal">(opcional)</span>
               </label>
-              <select disabled={!formData.pais} value={formData.tecnico_uid} onChange={e=>setFormData({...formData, tecnico_uid: e.target.value})} className="w-full border-gray-300 border p-2.5 rounded-xl bg-white focus:ring-brand-dark focus:border-brand-dark disabled:bg-gray-100 disabled:text-gray-400">
-                <option value="">{formData.pais ? '— Sin asignar (pool) —' : 'Primero selecciona país'}</option>
-                {tecnicosFiltrados.map(t => <option key={t.id} value={t.id}>{t.nombre || t.email}</option>)}
-              </select>
+              <CustomSelect 
+                value={formData.tecnico_uid} 
+                onChange={(val: string) => setFormData({...formData, tecnico_uid: val})} 
+                disabled={!formData.pais}
+                options={[
+                  { value: '', label: formData.pais ? '— Sin asignar (pool) —' : 'Primero selecciona país' },
+                  ...tecnicosFiltrados.map(t => ({ value: t.id, label: t.nombre || t.email }))
+                ]}
+                className="w-full border-gray-300 border p-2.5 rounded-xl bg-white focus:ring-brand-dark focus:border-brand-dark disabled:bg-gray-100 disabled:text-gray-400"
+              />
             </div>
 
             <div className="col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">Prioridad</label>
-              <select required value={formData.prioridad} onChange={e=>setFormData({...formData, prioridad: e.target.value})} className="w-full border-gray-300 border p-2.5 rounded-xl bg-white focus:ring-brand-dark focus:border-brand-dark">
-                <option value="Baja">Baja</option>
-                <option value="Media">Media</option>
-                <option value="Alta">Alta</option>
-                <option value="Urgente">Urgente</option>
-              </select>
+              <CustomSelect 
+                value={formData.prioridad} 
+                onChange={(val: string) => setFormData({...formData, prioridad: val})} 
+                options={[
+                  { value: 'Baja', label: 'Baja' },
+                  { value: 'Media', label: 'Media' },
+                  { value: 'Alta', label: 'Alta' },
+                  { value: 'Urgente', label: 'Urgente' }
+                ]}
+                className="w-full border-gray-300 border p-2.5 rounded-xl bg-white focus:ring-brand-dark focus:border-brand-dark"
+                required
+              />
             </div>
 
             <div className="col-span-1 md:col-span-2">

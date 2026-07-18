@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { useAuth, UserRole } from '../context/AuthContext';
 import { Shield, UserCog, Mail, Edit2, Trash2, X } from 'lucide-react';
+import { CustomSelect } from '../components/CustomSelect';
 import { Country } from 'country-state-city';
 import { useNotification } from '../context/NotificationContext';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -204,10 +205,15 @@ export default function Personal() {
                        </div>
                        <div>
                           <label className="block text-sm font-medium mb-1 text-gray-700">País</label>
-                          <select value={formData.pais} onChange={e=>setFormData({...formData, pais: e.target.value})} className="w-full border p-2.5 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-brand-dark outline-none">
-                              <option value="">Selecciona País...</option>
-                              {allCountries.map(p => <option key={p} value={p}>{p}</option>)}
-                          </select>
+                          <CustomSelect 
+                              value={formData.pais} 
+                              onChange={(val: string) => setFormData({...formData, pais: val})} 
+                              options={[
+                                  { value: '', label: 'Selecciona País...' },
+                                  ...allCountries.map(p => ({ value: p, label: p }))
+                              ]}
+                              className="w-full border p-2.5 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-brand-dark outline-none"
+                          />
                        </div>
                        <div className="md:col-span-2">
                           <label className="block text-sm font-medium mb-1 text-gray-700">Dirección</label>
@@ -220,10 +226,16 @@ export default function Personal() {
 
                        <div>
                           <label className="block text-sm font-medium mb-1 text-gray-700">Rol de Sistema</label>
-                          <select required value={formData.rol} onChange={e=>setFormData({...formData, rol: e.target.value as any})} className="w-full border p-2.5 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-brand-dark outline-none">
-                              <option value="tecnico">Técnico</option>
-                              <option value="administrador">Administrador</option>
-                          </select>
+                          <CustomSelect 
+                              value={formData.rol} 
+                              onChange={(val: string) => setFormData({...formData, rol: val as any})} 
+                              options={[
+                                  { value: 'tecnico', label: 'Técnico' },
+                                  { value: 'administrador', label: 'Administrador' }
+                              ]}
+                              className="w-full border p-2.5 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-brand-dark outline-none"
+                              required
+                          />
                        </div>
                        <div>
                           <label className="block text-sm font-medium mb-1 text-gray-700">Área de Trabajo</label>
@@ -235,10 +247,15 @@ export default function Personal() {
                        </div>
                        <div className="md:col-span-2">
                           <label className="block text-sm font-medium mb-1 text-gray-700">Jefe Inmediato Asignado</label>
-                          <select value={formData.jefe_inmediato} onChange={e=>setFormData({...formData, jefe_inmediato: e.target.value})} className="w-full border p-2.5 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-brand-dark outline-none">
-                              <option value="">Sin Jefe Asignado</option>
-                              {coordinadores.map(c => <option key={c.id} value={c.id}>{c.nombre || c.email}</option>)}
-                          </select>
+                          <CustomSelect 
+                              value={formData.jefe_inmediato} 
+                              onChange={(val: string) => setFormData({...formData, jefe_inmediato: val})} 
+                              options={[
+                                  { value: '', label: 'Sin Jefe Asignado' },
+                                  ...coordinadores.map(c => ({ value: c.id, label: c.nombre || c.email }))
+                              ]}
+                              className="w-full border p-2.5 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-brand-dark outline-none"
+                          />
                        </div>
                     </div>
                     

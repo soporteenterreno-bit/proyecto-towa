@@ -3,6 +3,7 @@ import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Edit2, Trash2, MapPin, Search, Package, Download, Upload, XCircle, Filter, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { CustomSelect } from '../components/CustomSelect';
 import { usePaisesTiendas } from '../hooks/usePaisesTiendas';
 import { parseCsv } from '../utils/csv';
 import { useNotification } from '../context/NotificationContext';
@@ -26,7 +27,7 @@ export default function Tiendas() {
   
   // Filtering States
   const [globalSearch, setGlobalSearch] = useState('');
-  const [filterCountry, setFilterCountry] = useState('');
+  const [filterCountry, setFilterCountry] = useState(userData?.pais || '');
   const [filterCity, setFilterCity] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
@@ -37,7 +38,7 @@ export default function Tiendas() {
 
   const fetchTiendas = async () => {
     try {
-        const { data, error } = await supabase.from('tiendas').select('*');
+        const { data, error } = await supabase.from('tiendas').select('*').order('id_tienda', { ascending: true });
         if (error) throw error;
         setTiendas(data || []);
     } catch (e) {
@@ -280,17 +281,28 @@ export default function Tiendas() {
         <div className="bg-white p-4 rounded-xl shadow-sm border border-brand-dark/20 flex flex-col md:flex-row gap-4 items-end animate-in fade-in slide-in-from-top-2">
            <div className="w-full md:w-1/3">
               <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">Filtrar por País</label>
-              <select value={filterCountry} onChange={e => { setFilterCountry(e.target.value); setFilterCity(''); }} className="w-full text-sm border-gray-300 border p-2 rounded-lg focus:ring-brand-dark focus:border-brand-dark bg-gray-50">
-                  <option value="">Cualquier País</option>
-                  {uniqueCountriesFilter.map(p => <option key={p as string} value={p as string}>{p as string}</option>)}
-              </select>
+              <CustomSelect 
+                  value={filterCountry} 
+                  onChange={(val: string) => { setFilterCountry(val); setFilterCity(''); }} 
+                  options={[
+                      { value: '', label: 'Cualquier País' },
+                      ...uniqueCountriesFilter.map(p => ({ value: p as string, label: p as string }))
+                  ]}
+                  className="w-full text-sm border-gray-300 border p-2 rounded-lg focus:ring-brand-dark focus:border-brand-dark bg-gray-50"
+              />
            </div>
            <div className="w-full md:w-1/3">
               <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">Filtrar por Ciudad</label>
-              <select value={filterCity} onChange={e => setFilterCity(e.target.value)} disabled={!filterCountry} className="w-full text-sm border-gray-300 border p-2 rounded-lg focus:ring-brand-dark focus:border-brand-dark disabled:bg-gray-100 disabled:opacity-50 bg-gray-50">
-                  <option value="">{filterCountry ? 'Cualquier Ciudad' : 'Primero elige un país'}</option>
-                  {uniqueCitiesFilter.map(c => <option key={c as string} value={c as string}>{c as string}</option>)}
-              </select>
+              <CustomSelect 
+                  value={filterCity} 
+                  onChange={(val: string) => setFilterCity(val)} 
+                  disabled={!filterCountry} 
+                  options={[
+                      { value: '', label: filterCountry ? 'Cualquier Ciudad' : 'Primero elige un país' },
+                      ...uniqueCitiesFilter.map(c => ({ value: c as string, label: c as string }))
+                  ]}
+                  className="w-full text-sm border-gray-300 border p-2 rounded-lg focus:ring-brand-dark focus:border-brand-dark disabled:bg-gray-100 disabled:opacity-50 bg-gray-50"
+              />
            </div>
            <div className="w-full md:w-auto">
               <button onClick={clearFilters} disabled={!globalSearch && !filterCountry && !filterCity} className="w-full md:w-auto px-4 py-2 text-sm text-gray-500 hover:text-gray-800 disabled:opacity-30 disabled:cursor-not-allowed font-medium">
@@ -400,10 +412,16 @@ export default function Tiendas() {
                       <div><label className="block text-sm font-medium mb-1">ID Tienda</label><input type="number" required value={formData.id_tienda} onChange={e=>setFormData({...formData, id_tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
                       <div>
                           <label className="block text-sm font-medium mb-1">País</label>
-                          <select required value={formData.pais_tienda} onChange={e=>setFormData({...formData, pais_tienda: e.target.value})} className="w-full border p-2 rounded-lg bg-white">
-                              <option value="">Selecciona País...</option>
-                              {paises.map(p => <option key={p} value={p}>{p}</option>)}
-                          </select>
+                          <CustomSelect 
+                              value={formData.pais_tienda} 
+                              onChange={(val: string) => setFormData({...formData, pais_tienda: val})} 
+                              options={[
+                                  { value: '', label: 'Selecciona País...' },
+                                  ...paises.map(p => ({ value: p, label: p }))
+                              ]}
+                              className="w-full border p-2 rounded-lg bg-white"
+                              required
+                          />
                       </div>
                     </div>
                     <div><label className="block text-sm font-medium mb-1">Nombre Tienda</label><input value={formData.tienda} onChange={e=>setFormData({...formData, tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
@@ -434,11 +452,17 @@ export default function Tiendas() {
 
                     <div>
                         <label className="block text-sm font-medium mb-1">Estatus del Local</label>
-                        <select required value={formData.estatus || 'Tienda Activa'} onChange={e=>setFormData({...formData, estatus: e.target.value})} className="w-full border p-2 rounded-lg bg-white">
-                            <option value="Tienda Activa">Tienda Activa</option>
-                            <option value="Tienda Existente">Tienda Existente</option>
-                            <option value="Tienda No Existe">Tienda No Existe</option>
-                        </select>
+                        <CustomSelect 
+                            value={formData.estatus || 'Tienda Activa'} 
+                            onChange={(val: string) => setFormData({...formData, estatus: val})} 
+                            options={[
+                                { value: 'Tienda Activa', label: 'Tienda Activa' },
+                                { value: 'Tienda Existente', label: 'Tienda Existente' },
+                                { value: 'Tienda No Existe', label: 'Tienda No Existe' }
+                            ]}
+                            className="w-full border p-2 rounded-lg bg-white"
+                            required
+                        />
                     </div>
 
                     <div className="flex justify-end space-x-3 pt-4">
