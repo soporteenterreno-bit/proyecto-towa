@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Calendar, Building, CheckSquare } from 'lucide-react';
+import { AlertTriangle, Calendar, Building, CheckSquare, Search, X, Trash2, CheckCircle2 } from 'lucide-react';
 import { sendVisitNotificationEmail } from '../utils/emailService';
 import { usePaisesTiendas } from '../hooks/usePaisesTiendas';
 import { useNotification } from '../context/NotificationContext';
@@ -20,6 +20,9 @@ export default function AsignarVisita() {
   const [categoriasList, setCategoriasList] = useState<any[]>([]);
   const [componentesList, setComponentesList] = useState<any[]>([]);
   const [expandedCatAsignar, setExpandedCatAsignar] = useState<string[]>([]);
+  const [searchComponente, setSearchComponente] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [filtroCategoria, setFiltroCategoria] = useState('ALL');
 
   
   const [formData, setFormData] = useState({
@@ -135,6 +138,27 @@ export default function AsignarVisita() {
     }
   };
 
+  const validCategorias = categoriasList.filter(cat => (cat.tipo || 'Tienda') === (formData.tipo === 'Oficina' ? 'Oficina' : 'Tienda'));
+  const validCategoriaIds = validCategorias.map(c => c.id);
+  const availableComponents = componentesList.filter(c => validCategoriaIds.includes(c.categoria_id));
+  const filteredComponents = availableComponents.filter(c => {
+    const matchesSearch = c.name.toLowerCase().includes(searchComponente.toLowerCase());
+    const matchesCat = filtroCategoria === 'ALL' || c.categoria_id === filtroCategoria;
+    return matchesSearch && matchesCat;
+  });
+
+  const handleSelectAllFiltered = () => {
+    const filteredIds = filteredComponents.map(c => c.id);
+    setFormData(prev => ({
+        ...prev,
+        componentes_afectados: Array.from(new Set([...prev.componentes_afectados, ...filteredIds]))
+    }));
+  };
+
+  const handleClearAll = () => {
+    setFormData(prev => ({ ...prev, componentes_afectados: [] }));
+  };
+
   return (
     <div className="max-w-4xl mx-auto pb-12">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -189,49 +213,99 @@ export default function AsignarVisita() {
                     <CheckSquare className="w-5 h-5 text-brand-dark" />
                     <h3 className="font-bold text-gray-800 text-lg">Componentes a Revisar</h3>
                 </div>
-                {categoriasList.filter(cat => (cat.tipo || 'Tienda') === (formData.tipo === 'Oficina' ? 'Oficina' : 'Tienda')).length === 0 ? (
+                {validCategorias.length === 0 ? (
                     <p className="text-sm text-gray-500">No hay categorías ni componentes configurados para este tipo de visita.</p>
                 ) : (
-                    <div className="space-y-3">
-                        {categoriasList
-                            .filter(cat => (cat.tipo || 'Tienda') === (formData.tipo === 'Oficina' ? 'Oficina' : 'Tienda'))
-                            .map(cat => {
-                            const catComponents = componentesList.filter(c => c.categoria_id === cat.id);
-                            if (catComponents.length === 0) return null;
-                            const isExpanded = expandedCatAsignar.includes(cat.id);
-                            
-                            return (
-                                <div key={cat.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                                    <div 
-                                        className="p-3 bg-gray-100 flex justify-between items-center cursor-pointer hover:bg-gray-200 transition-colors"
-                                        onClick={() => {
-                                            setExpandedCatAsignar(prev => prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]);
-                                        }}
-                                    >
-                                        <span className="font-bold text-gray-800">{cat.nombre}</span>
-                                        <div className="flex items-center">
-                                            <span className="text-xs font-medium text-gray-500 mr-2">{catComponents.filter(c => formData.componentes_afectados.includes(c.id)).length} seleccionados</span>
-                                            <span className="text-xs text-gray-400">({catComponents.length} totales)</span>
+                    <div className="space-y-4">
+                        {/* Selected Tags Area */}
+                        {formData.componentes_afectados.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                                {formData.componentes_afectados.map(compId => {
+                                    const comp = componentesList.find(c => c.id === compId);
+                                    if (!comp) return null;
+                                    return (
+                                        <span key={compId} className="inline-flex items-center gap-1 pl-3 pr-1 py-1 bg-brand-dark text-white text-xs font-semibold rounded-full">
+                                            {comp.name}
+                                            <button type="button" onClick={() => toggleComponente(compId)} className="hover:bg-red-500 rounded-full p-1 transition-colors">
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Search Bar & Floating Dropdown */}
+                        <div className="relative">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                <input 
+                                    type="text"
+                                    placeholder="Buscar componente (ej: impresora)..."
+                                    value={searchComponente}
+                                    onChange={e => setSearchComponente(e.target.value)}
+                                    onFocus={() => setShowDropdown(true)}
+                                    onClick={() => setShowDropdown(true)}
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none text-sm bg-white"
+                                />
+                            </div>
+
+                            {/* Filtered Components List (Floating) */}
+                            {showDropdown && (
+                                <>
+                                    {/* Invisible overlay to close dropdown when clicking outside */}
+                                    <div className="fixed inset-0 z-10" onClick={() => setShowDropdown(false)} />
+                                    
+                                    <div className="absolute z-20 w-full mt-2 border border-gray-200 rounded-xl bg-white shadow-xl flex flex-col overflow-visible">
+                                        
+                                        {/* Dropdown Header: Actions & Filters */}
+                                        <div className="p-3 bg-gray-50 rounded-t-xl border-b border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-3 relative z-40">
+                                            <div className="flex gap-2 w-full sm:w-auto">
+                                                <button type="button" onClick={handleSelectAllFiltered} className="flex-1 sm:flex-none text-xs font-bold px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-colors flex items-center justify-center gap-1">
+                                                    <CheckCircle2 className="w-4 h-4"/> Sel. Todos
+                                                </button>
+                                                <button type="button" onClick={handleClearAll} className="flex-1 sm:flex-none text-xs font-bold px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg transition-colors flex items-center justify-center gap-1">
+                                                    <Trash2 className="w-4 h-4"/> Limpiar
+                                                </button>
+                                            </div>
+                                            
+                                            <div className="w-full sm:w-auto">
+                                                <CustomSelect 
+                                                    value={filtroCategoria}
+                                                    onChange={val => setFiltroCategoria(val)}
+                                                    options={[
+                                                        { value: 'ALL', label: 'Todas las Categorías' },
+                                                        ...validCategorias.map(c => ({ value: c.id, label: c.nombre }))
+                                                    ]}
+                                                    containerClassName="w-full sm:w-[190px]"
+                                                    className="w-full text-xs px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-dark bg-white font-medium text-gray-700 shadow-sm"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Scrollable List */}
+                                        <div className="max-h-60 overflow-y-auto p-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 relative z-30">
+                                            {filteredComponents.length > 0 ? filteredComponents.map(comp => {
+                                                const isSelected = formData.componentes_afectados.includes(comp.id);
+                                                return (
+                                                    <label key={comp.id} className={`flex items-center p-2.5 rounded-lg border cursor-pointer transition-colors ${isSelected ? 'bg-brand-dark border-brand-dark text-white shadow-sm' : 'bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700'}`}>
+                                                        <input 
+                                                            type="checkbox"
+                                                            className="sr-only"
+                                                            checked={isSelected}
+                                                            onChange={() => toggleComponente(comp.id)}
+                                                        />
+                                                        <span className="font-medium text-sm truncate w-full text-center" title={comp.name}>{comp.name}</span>
+                                                    </label>
+                                                );
+                                            }) : (
+                                                <p className="text-sm text-gray-500 col-span-full p-6 text-center">No se encontraron componentes para esta búsqueda o filtro.</p>
+                                            )}
                                         </div>
                                     </div>
-                                    {isExpanded && (
-                                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 bg-white border-t border-gray-200">
-                                            {catComponents.map(comp => (
-                                                <label key={comp.id} className={`flex items-center p-3 rounded-lg border cursor-pointer transition-colors ${formData.componentes_afectados.includes(comp.id) ? 'bg-brand-dark border-brand-dark text-white' : 'bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700'}`}>
-                                                    <input 
-                                                        type="checkbox"
-                                                        className="sr-only"
-                                                        checked={formData.componentes_afectados.includes(comp.id)}
-                                                        onChange={() => toggleComponente(comp.id)}
-                                                    />
-                                                    <span className="font-medium text-sm text-center w-full">{comp.name}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                </>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
