@@ -10,6 +10,7 @@ interface CustomSelectProps {
   containerClassName?: string; // For the outer wrapper
   required?: boolean;
   searchable?: boolean;
+  dropdownPosition?: 'bottom' | 'top';
 }
 
 export const CustomSelect: React.FC<CustomSelectProps> = ({ 
@@ -21,7 +22,8 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   className = '',
   containerClassName = '',
   required = false,
-  searchable = false
+  searchable = false,
+  dropdownPosition = 'bottom'
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -76,7 +78,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         </svg>
       </div>
       {isOpen && !disabled && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-100 rounded-lg shadow-lg max-h-60 flex flex-col">
+        <div className={`absolute z-10 w-full ${dropdownPosition === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'} bg-white border border-gray-100 rounded-lg shadow-xl max-h-60 flex flex-col`}>
           {searchable && (
             <div className="p-2 border-b border-gray-100 sticky top-0 bg-gray-50/90 backdrop-blur-sm z-10">
               <div className="relative">

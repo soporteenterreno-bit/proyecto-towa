@@ -237,17 +237,27 @@ export default function AsignarVisita() {
 
                         {/* Search Bar & Floating Dropdown */}
                         <div className="relative">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                <input 
-                                    type="text"
-                                    placeholder="Buscar componente (ej: impresora)..."
-                                    value={searchComponente}
-                                    onChange={e => setSearchComponente(e.target.value)}
-                                    onFocus={() => setShowDropdown(true)}
-                                    onClick={() => setShowDropdown(true)}
-                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none text-sm bg-white"
-                                />
+                            <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                                <div className="relative flex-1 w-full">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                    <input 
+                                        type="text"
+                                        placeholder="Buscar componente (ej: impresora)..."
+                                        value={searchComponente}
+                                        onChange={e => setSearchComponente(e.target.value)}
+                                        onFocus={() => setShowDropdown(true)}
+                                        onClick={() => setShowDropdown(true)}
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none text-sm bg-white"
+                                    />
+                                </div>
+                                <div className="flex gap-2 w-full sm:w-auto shrink-0">
+                                    <button type="button" onClick={handleSelectAllFiltered} className="flex-1 sm:flex-none text-xs font-bold px-3 py-2.5 sm:py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl transition-colors flex items-center justify-center gap-1 shadow-sm">
+                                        <CheckCircle2 className="w-4 h-4"/> Sel. Todos
+                                    </button>
+                                    <button type="button" onClick={handleClearAll} className="flex-1 sm:flex-none text-xs font-bold px-3 py-2.5 sm:py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl transition-colors flex items-center justify-center gap-1 shadow-sm">
+                                        <Trash2 className="w-4 h-4"/> Limpiar
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Filtered Components List (Floating) */}
@@ -256,50 +266,55 @@ export default function AsignarVisita() {
                                     {/* Invisible overlay to close dropdown when clicking outside */}
                                     <div className="fixed inset-0 z-10" onClick={() => setShowDropdown(false)} />
                                     
-                                    <div className="absolute z-20 w-full mt-2 border border-gray-200 rounded-xl bg-white shadow-xl flex flex-col overflow-visible">
+                                    <div className="absolute z-20 w-full mt-2 border border-gray-200 rounded-xl bg-white shadow-xl flex flex-col sm:flex-row overflow-visible min-h-[220px]">
                                         
-                                        {/* Dropdown Header: Actions & Filters */}
-                                        <div className="p-3 bg-gray-50 rounded-t-xl border-b border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-3 relative z-40">
-                                            <div className="flex gap-2 w-full sm:w-auto">
-                                                <button type="button" onClick={handleSelectAllFiltered} className="flex-1 sm:flex-none text-xs font-bold px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-colors flex items-center justify-center gap-1">
-                                                    <CheckCircle2 className="w-4 h-4"/> Sel. Todos
-                                                </button>
-                                                <button type="button" onClick={handleClearAll} className="flex-1 sm:flex-none text-xs font-bold px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg transition-colors flex items-center justify-center gap-1">
-                                                    <Trash2 className="w-4 h-4"/> Limpiar
-                                                </button>
+                                        {/* Left Side: Category Filter (Sidebar) */}
+                                        <div className="w-full sm:w-[200px] bg-gray-50 border-b sm:border-b-0 sm:border-r border-gray-200 rounded-t-xl sm:rounded-l-xl sm:rounded-tr-none shrink-0 flex flex-col overflow-hidden">
+                                            <div className="p-2.5 border-b border-gray-200 bg-gray-100/50">
+                                                <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Categorías</h4>
                                             </div>
-                                            
-                                            <div className="w-full sm:w-auto">
-                                                <CustomSelect 
-                                                    value={filtroCategoria}
-                                                    onChange={val => setFiltroCategoria(val)}
-                                                    options={[
-                                                        { value: 'ALL', label: 'Todas las Categorías' },
-                                                        ...validCategorias.map(c => ({ value: c.id, label: c.nombre }))
-                                                    ]}
-                                                    containerClassName="w-full sm:w-[190px]"
-                                                    className="w-full text-xs px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-dark bg-white font-medium text-gray-700 shadow-sm"
-                                                />
+                                            <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5 max-h-[260px] custom-scrollbar">
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setFiltroCategoria('ALL')}
+                                                    className={`w-full text-left px-2.5 py-2 rounded-md text-[11px] font-medium transition-colors ${filtroCategoria === 'ALL' ? 'bg-brand-dark text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}
+                                                >
+                                                    Todas las Categorías
+                                                </button>
+                                                {validCategorias.map(c => (
+                                                    <button 
+                                                        key={c.id}
+                                                        type="button"
+                                                        onClick={() => setFiltroCategoria(c.id)}
+                                                        className={`w-full text-left px-2.5 py-2 rounded-md text-[11px] font-medium transition-colors ${filtroCategoria === c.id ? 'bg-brand-dark text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}
+                                                    >
+                                                        {c.nombre}
+                                                    </button>
+                                                ))}
                                             </div>
                                         </div>
 
-                                        {/* Scrollable List */}
-                                        <div className="max-h-60 overflow-y-auto p-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 relative z-30">
-                                            {filteredComponents.length > 0 ? filteredComponents.map(comp => {
-                                                const isSelected = formData.componentes_afectados.includes(comp.id);
-                                                return (
-                                                    <label key={comp.id} className={`flex items-center p-2.5 rounded-lg border cursor-pointer transition-colors ${isSelected ? 'bg-brand-dark border-brand-dark text-white shadow-sm' : 'bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700'}`}>
-                                                        <input 
-                                                            type="checkbox"
-                                                            className="sr-only"
-                                                            checked={isSelected}
-                                                            onChange={() => toggleComponente(comp.id)}
-                                                        />
-                                                        <span className="font-medium text-sm truncate w-full text-center" title={comp.name}>{comp.name}</span>
-                                                    </label>
-                                                );
-                                            }) : (
-                                                <p className="text-sm text-gray-500 col-span-full p-6 text-center">No se encontraron componentes para esta búsqueda o filtro.</p>
+                                        {/* Right Side: Scrollable List */}
+                                        <div className="flex-1 max-h-[260px] overflow-y-auto p-3 relative z-30">
+                                            {filteredComponents.length > 0 ? (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                                                    {filteredComponents.map(comp => {
+                                                        const isSelected = formData.componentes_afectados.includes(comp.id);
+                                                        return (
+                                                            <label key={comp.id} className={`flex items-center p-1.5 rounded-lg border cursor-pointer transition-colors ${isSelected ? 'bg-brand-dark border-brand-dark text-white shadow-sm' : 'bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700'}`}>
+                                                                <input 
+                                                                    type="checkbox"
+                                                                    className="sr-only"
+                                                                    checked={isSelected}
+                                                                    onChange={() => toggleComponente(comp.id)}
+                                                                />
+                                                                <span className="font-semibold text-[11px] truncate w-full text-center" title={comp.name}>{comp.name}</span>
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs text-gray-500 p-6 text-center">No se encontraron componentes para esta búsqueda o filtro.</p>
                                             )}
                                         </div>
                                     </div>

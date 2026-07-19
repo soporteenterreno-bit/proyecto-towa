@@ -8,11 +8,13 @@ import { es } from 'date-fns/locale';
 import { useNotification } from '../context/NotificationContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { parseSafeDate } from '../utils/date';
+import { usePaisesTiendas } from '../hooks/usePaisesTiendas';
 
 export default function TablaVisitas() {
   usePageTitle('Tabla de Visitas');
   const { showAlert } = useNotification();
   const { user, role, userData } = useAuth();
+  const { paises } = usePaisesTiendas();
   const [visitas, setVisitas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -21,7 +23,9 @@ export default function TablaVisitas() {
   const [filterPais, setFilterPais] = useState(userData?.pais || '');
   const [filterStore, setFilterStore] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterTecnico, setFilterTecnico] = useState(user?.id || 'ALL');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [sortState, setSortState] = useState<'ASC'|'DESC'|null>('ASC');
 
   useEffect(() => {
     if (userData?.pais && filterPais === '') {
@@ -147,12 +151,13 @@ export default function TablaVisitas() {
   };
 
   const uniqueStores = Array.from(new Set(visitas.map(v => v.tienda.tienda))).filter(Boolean).sort();
-  const uniqueCountries = Array.from(new Set(visitas.map(v => v.tienda.pais_tienda))).filter(Boolean).sort();
+  const uniqueTecnicos = Array.from(new Map(visitas.filter(v => v.tecnico_uid && v.tecnicoInfo?.nombre).map(v => [v.tecnico_uid, v.tecnicoInfo.nombre])).entries()).map(([id, nombre]) => ({ id, nombre }));
 
   const filteredVisitas = visitas.filter(v => {
       if (filterStatus !== 'ALL' && v.status !== filterStatus) return false;
       if (filterPais && v.tienda.pais_tienda !== filterPais) return false;
       if (filterStore && v.tienda.tienda !== filterStore) return false;
+      if (filterTecnico !== 'ALL' && v.tecnico_uid !== filterTecnico) return false;
       if (dateRange.start || dateRange.end) {
           const visitDate = parseISO(v.fecha_programada);
           const start = dateRange.start ? startOfDay(parseISO(dateRange.start)) : new Date('2000-01-01');
@@ -162,10 +167,24 @@ export default function TablaVisitas() {
       return true;
   });
 
+  const statusOrder = { 'Pendiente': 1, 'En Curso': 2, 'Completada': 3 };
+  
+  const sortedAndFilteredVisitas = [...filteredVisitas].sort((a, b) => {
+      if (sortState) {
+          const valA = statusOrder[a.status as keyof typeof statusOrder] || 99;
+          const valB = statusOrder[b.status as keyof typeof statusOrder] || 99;
+          if (valA !== valB) {
+              return sortState === 'ASC' ? valA - valB : valB - valA;
+          }
+      }
+      return new Date(b.fecha_programada).getTime() - new Date(a.fecha_programada).getTime();
+  });
+
   const clearFilters = () => {
       setFilterStatus('ALL');
       setFilterStore('');
       setFilterPais('');
+      setFilterTecnico('ALL');
       setDateRange({ start: '', end: '' });
   };
 
@@ -178,8 +197,15 @@ export default function TablaVisitas() {
         
         <div className="flex space-x-2 w-full sm:w-auto">
             <button 
+               onClick={clearFilters} 
+               disabled={filterStatus === 'ALL' && !filterStore && !filterPais && filterTecnico === 'ALL' && !dateRange.start && !dateRange.end} 
+               className="flex items-center w-full justify-center sm:w-auto px-4 py-2 text-sm text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed font-medium transition-colors"
+            >
+                <XCircle className="w-4 h-4 mr-2"/> Limpiar Filtros
+            </button>
+            <button 
                onClick={() => setShowFilters(!showFilters)}
-               className={`flex items-center w-full justify-center sm:w-auto px-4 py-2 border rounded-xl transition-colors whitespace-nowrap text-sm font-semibold shadow-sm ${showFilters || filterStore || filterPais || filterStatus !== 'ALL' || dateRange.start || dateRange.end ? 'bg-brand-gray border-brand-dark text-brand-dark' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+               className={`flex items-center w-full justify-center sm:w-auto px-4 py-2 border rounded-xl transition-colors whitespace-nowrap text-sm font-semibold shadow-sm ${showFilters || filterStore || filterPais || filterTecnico !== 'ALL' || filterStatus !== 'ALL' || dateRange.start || dateRange.end ? 'bg-brand-gray border-brand-dark text-brand-dark' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}
             >
                <Filter className="w-5 h-5 mr-2" /> Filtros Avanzados
             </button>
@@ -187,10 +213,23 @@ export default function TablaVisitas() {
       </div>
 
       {showFilters && (
-          <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-brand-dark/20 animate-in fade-in slide-in-from-top-2">
-             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="bg-white p-3 sm:p-4 rounded-2xl shadow-sm border border-brand-dark/20 animate-in fade-in slide-in-from-top-2 mt-4 relative z-40">
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Estado</label>
+                    <label className="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider mb-1">Técnico</label>
+                    <CustomSelect 
+                        value={filterTecnico} 
+                        onChange={(val: string) => setFilterTecnico(val)} 
+                        options={[
+                            { value: 'ALL', label: 'Todos los técnicos' },
+                            ...uniqueTecnicos.map(t => ({ value: t.id as string, label: t.nombre as string }))
+                        ]}
+                        className="w-full text-sm border border-gray-300 p-2 rounded-xl bg-white focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none"
+                    />
+                 </div>
+
+                 <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider mb-1">Estado</label>
                     <CustomSelect 
                         value={filterStatus} 
                         onChange={(val: string) => setFilterStatus(val)} 
@@ -200,25 +239,25 @@ export default function TablaVisitas() {
                             { value: 'En Curso', label: 'En Curso' },
                             { value: 'Completada', label: 'Completada' }
                         ]}
-                        className="w-full text-sm border border-gray-300 p-2.5 rounded-xl bg-white focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none"
+                        className="w-full text-sm border border-gray-300 p-2 rounded-xl bg-white focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none"
                     />
                  </div>
                  
                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">País</label>
+                    <label className="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider mb-1">País</label>
                     <CustomSelect 
                         value={filterPais} 
                         onChange={(val: string) => setFilterPais(val)} 
                         options={[
                             { value: '', label: 'Cualquier país' },
-                            ...uniqueCountries.map(pais => ({ value: pais as string, label: pais as string }))
+                            ...paises.map(pais => ({ value: pais as string, label: pais as string }))
                         ]}
-                        className="w-full text-sm border border-gray-300 p-2.5 rounded-xl bg-white focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none"
+                        className="w-full text-sm border border-gray-300 p-2 rounded-xl bg-white focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none"
                     />
                  </div>
                  
                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Tienda / Establecimiento</label>
+                    <label className="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider mb-1">Tienda / Establecimiento</label>
                     <CustomSelect 
                         value={filterStore} 
                         onChange={(val: string) => setFilterStore(val)} 
@@ -226,25 +265,19 @@ export default function TablaVisitas() {
                             { value: '', label: 'Cualquier tienda' },
                             ...uniqueStores.map(store => ({ value: store as string, label: store as string }))
                         ]}
-                        className="w-full text-sm border border-gray-300 p-2.5 rounded-xl bg-white focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none"
+                        className="w-full text-sm border border-gray-300 p-2 rounded-xl bg-white focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none"
                     />
                  </div>
 
                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Desde (Fecha Prog.)</label>
-                    <input type="date" value={dateRange.start} onChange={e => setDateRange({...dateRange, start: e.target.value})} className="w-full text-sm border border-gray-300 p-2.5 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none bg-white"/>
+                    <label className="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider mb-1">Desde (Fecha Prog.)</label>
+                    <input type="date" value={dateRange.start} onChange={e => setDateRange({...dateRange, start: e.target.value})} className="w-full text-sm border border-gray-300 p-2 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none bg-white"/>
                  </div>
 
                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Hasta (Fecha Prog.)</label>
-                    <input type="date" value={dateRange.end} onChange={e => setDateRange({...dateRange, end: e.target.value})} className="w-full text-sm border border-gray-300 p-2.5 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none bg-white"/>
+                    <label className="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider mb-1">Hasta (Fecha Prog.)</label>
+                    <input type="date" value={dateRange.end} onChange={e => setDateRange({...dateRange, end: e.target.value})} className="w-full text-sm border border-gray-300 p-2 rounded-xl focus:ring-2 focus:ring-brand-dark focus:border-brand-dark outline-none bg-white"/>
                  </div>
-             </div>
-             
-             <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
-                <button onClick={clearFilters} disabled={filterStatus === 'ALL' && !filterStore && !filterPais && !dateRange.start && !dateRange.end} className="flex flex-1 sm:flex-none items-center justify-center px-4 py-2.5 text-sm text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed font-medium transition-colors">
-                    <XCircle className="w-4 h-4 mr-2"/> Limpiar Filtros
-                </button>
              </div>
           </div>
       )}
@@ -262,12 +295,23 @@ export default function TablaVisitas() {
                             <th className="p-4 text-sm font-semibold text-gray-600">Tienda de Destino</th>
                             <th className="p-4 text-sm font-semibold text-gray-600">Tipo de Visita</th>
                             <th className="p-4 text-sm font-semibold text-gray-600">Técnico Asignado</th>
-                            <th className="p-4 text-sm font-semibold text-gray-600">Estado / Eval.</th>
+                            <th 
+                                className="p-4 text-sm font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 transition-colors"
+                                onClick={() => setSortState(prev => prev === 'ASC' ? 'DESC' : 'ASC')}
+                            >
+                                <div className="flex items-center">
+                                    Estado / Eval.
+                                    <div className="ml-2 flex flex-col">
+                                        <span className={`text-[10px] leading-none ${sortState === 'ASC' ? 'text-brand-dark' : 'text-gray-300'}`}>▲</span>
+                                        <span className={`text-[10px] leading-none ${sortState === 'DESC' ? 'text-brand-dark' : 'text-gray-300'}`}>▼</span>
+                                    </div>
+                                </div>
+                            </th>
                             <th className="p-4 text-sm font-semibold text-gray-600 text-center sticky right-0 bg-gray-50 z-10 border-l border-gray-200 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredVisitas.map(v => (
+                        {sortedAndFilteredVisitas.map(v => (
                             <tr key={v.id} className="border-b border-gray-100 group hover:bg-gray-50 transition-colors">
                                 <td className="p-4">
                                     <div className="flex items-center text-gray-800 font-medium whitespace-nowrap">
@@ -315,7 +359,7 @@ export default function TablaVisitas() {
                                 </td>
                             </tr>
                         ))}
-                        {filteredVisitas.length === 0 && (
+                        {sortedAndFilteredVisitas.length === 0 && (
                             <tr>
                                 <td colSpan={7} className="p-12 text-center text-gray-500">
                                     <div className="flex flex-col items-center justify-center">
