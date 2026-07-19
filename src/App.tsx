@@ -19,7 +19,6 @@ import Tiendas from './pages/Tiendas';
 import Inventario from './pages/Inventario';
 import Personal from './pages/Personal';
 import AsignarVisita from './pages/AsignarVisita';
-import SolicitarVisita from './pages/SolicitarVisita';
 import MisVisitas from './pages/MisVisitas';
 import TablaVisitas from './pages/TablaVisitas';
 import FormularioVisita from './pages/FormularioVisita';
@@ -73,15 +72,6 @@ export default function App() {
                 element={
                   <ProtectedRoute allowedRoles={['administrador', 'tecnico']}>
                     <AsignarVisita />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="visitas/solicitar"
-                element={
-                  <ProtectedRoute allowedRoles={['administrador', 'tecnico']}>
-                    <SolicitarVisita />
                   </ProtectedRoute>
                 }
               />

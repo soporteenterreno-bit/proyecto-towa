@@ -33,14 +33,13 @@ export default function AppLayout() {
         { name: 'Mis Visitas', href: '/visitas/mis-visitas', icon: Briefcase, roles: ['administrador', 'tecnico'] },
         { name: 'Tabla de Visitas', href: '/visitas/tabla', icon: ClipboardList, roles: ['administrador', 'tecnico'] },
         { name: 'Asignar Visita', href: '/visitas/asignar', icon: CalendarPlus, roles: ['administrador', 'tecnico'] },
-        { name: 'Solicitar Visita', href: '/visitas/solicitar', icon: CalendarPlus, roles: ['administrador', 'tecnico'] },
       ]
     },
     { name: 'Reportes', href: '/reportes', icon: BarChart3, roles: ['administrador'] },
 
     { name: 'Gestión Personal', href: '/personal', icon: Users, roles: ['administrador'] },
     { name: 'Mi Cuenta', href: '/cuenta', icon: Settings, roles: ['administrador', 'tecnico'] },
-    { name: 'Configuración Gral', href: '/configuracion', icon: Settings, roles: ['administrador'] }
+    { name: 'Configuración', href: '/configuracion', icon: Settings, roles: ['administrador'] }
   ];
 
   const filteredNav = navigation.filter(item => role && item.roles.includes(role));

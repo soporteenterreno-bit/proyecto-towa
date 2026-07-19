@@ -107,32 +107,61 @@ export default function Inventario() {
          </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-         {loading ? <p className="text-gray-500 p-4">Cargando inventario...</p> : 
-          inventario.map(item => (
-             <div key={item.id} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-all">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center space-x-3">
-                     <div className="p-2 bg-gray-50 rounded-lg">{getIcon(item.categoria_componente)}</div>
-                     <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{item.categoria_componente} {item.subcategoria_componente ? `> ${item.subcategoria_componente}` : ''}</p>
-                        <h4 className="font-bold text-gray-800">{item.marca} {item.modelo}</h4>
-                     </div>
-                  </div>
-                  <div className="flex space-x-1">
-                     <button onClick={() => { setEditingItem(item); setFormData(item); setIsModalOpen(true); }} className="p-1.5 text-gray-400 hover:text-brand-dark bg-gray-50 rounded"><Edit2 className="w-4 h-4"/></button>
-                     <button onClick={() => handleDelete(item.id)} className="p-1.5 text-gray-400 hover:text-red-600 bg-gray-50 rounded"><Trash2 className="w-4 h-4"/></button>
-                  </div>
-                </div>
-                <div className="space-y-2 text-sm">
-                   <div className="flex justify-between"><span className="text-gray-500">ID / Serial:</span><span className="font-mono bg-gray-50 px-2 rounded border border-gray-100 text-xs">{item.id_componente || '—'} / {item.serial || '—'}</span></div>
-                   <div className="flex justify-between"><span className="text-gray-500">Estado Físico:</span><span className={item.estado_fisico?.includes('Malo') ? 'text-red-500 font-medium' : 'text-gray-700'}>{item.estado_fisico}</span></div>
-                   <div className="flex justify-between"><span className="text-gray-500">Operatividad:</span><span className={item.estado_operativo === 'Operativo' ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>{item.estado_operativo}</span></div>
-                </div>
-             </div>
-          ))
-         }
-         {!loading && inventario.length === 0 && <div className="col-span-full p-8 text-center bg-white rounded-2xl border border-dashed border-gray-300 text-gray-500">No hay equipos registrados.</div>}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center text-gray-500">Cargando inventario...</div>
+        ) : (
+            <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-max relative">
+                <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="p-4 text-sm font-semibold text-gray-600">Categoría</th>
+                    <th className="p-4 text-sm font-semibold text-gray-600">Marca / Modelo</th>
+                    <th className="p-4 text-sm font-semibold text-gray-600">ID / Serial</th>
+                    <th className="p-4 text-sm font-semibold text-gray-600">Estado Físico</th>
+                    <th className="p-4 text-sm font-semibold text-gray-600">Operatividad</th>
+                    <th className="p-4 text-sm font-semibold text-gray-600 text-center sticky right-0 bg-gray-50 z-10 border-l border-gray-200">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {inventario.map(item => (
+                      <tr key={item.id} className="border-b border-gray-100 group hover:bg-gray-50 transition-colors">
+                          <td className="p-4">
+                             <div className="flex items-center space-x-3">
+                                <div className="p-2 bg-white rounded-lg border border-gray-100 shadow-sm">{getIcon(item.categoria_componente)}</div>
+                                <div>
+                                   <p className="text-sm font-semibold text-gray-800">{item.categoria_componente}</p>
+                                   <p className="text-xs text-gray-500">{item.subcategoria_componente}</p>
+                                </div>
+                             </div>
+                          </td>
+                          <td className="p-4">
+                             <h4 className="font-bold text-gray-800">{item.marca}</h4>
+                             <p className="text-sm text-gray-600">{item.modelo}</p>
+                          </td>
+                          <td className="p-4">
+                             <span className="font-mono bg-gray-100 px-2 py-1 rounded text-xs font-semibold">{item.id_componente || '—'}</span>
+                             <div className="text-xs text-gray-500 mt-1">SN: {item.serial || '—'}</div>
+                          </td>
+                          <td className="p-4">
+                             <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${item.estado_fisico?.includes('Malo') ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>{item.estado_fisico}</span>
+                          </td>
+                          <td className="p-4">
+                             <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${item.estado_operativo === 'Operativo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{item.estado_operativo}</span>
+                          </td>
+                          <td className="p-4 text-center space-x-2 sticky right-0 bg-white group-hover:bg-gray-50 z-10 border-l border-gray-100">
+                             <button onClick={() => { setEditingItem(item); setFormData(item); setIsModalOpen(true); }} className="p-2 text-gray-400 hover:text-brand-dark bg-gray-50 hover:bg-white rounded border border-transparent hover:border-gray-200 transition-colors" title="Editar"><Edit2 className="w-4 h-4"/></button>
+                             <button onClick={() => handleDelete(item.id)} className="p-2 text-gray-400 hover:text-red-600 bg-gray-50 hover:bg-white rounded border border-transparent hover:border-gray-200 transition-colors" title="Eliminar"><Trash2 className="w-4 h-4"/></button>
+                          </td>
+                      </tr>
+                    ))}
+                    {inventario.length === 0 && (
+                        <tr><td colSpan={6} className="p-8 text-center text-gray-500 bg-gray-50 border border-dashed border-gray-300 m-4 rounded-xl">No hay equipos registrados.</td></tr>
+                    )}
+                </tbody>
+                </table>
+            </div>
+        )}
       </div>
 
       {/* Modal */}

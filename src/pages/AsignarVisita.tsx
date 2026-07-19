@@ -23,10 +23,10 @@ export default function AsignarVisita() {
 
   
   const [formData, setFormData] = useState({
-    tipo: 'Programada', // 'Programada' | 'Falla' | 'Rutina'
+    tipo: 'Programada', // 'Programada' | 'Falla' | 'Oficina'
     pais: userData?.pais || '',
     id_tienda: '',
-    tecnico_uid: '',
+    tecnico_uid: userData?.uid || '',
     fecha_programada: '',
     tt_number: '',
     notas_coordinador: '',
@@ -41,7 +41,7 @@ export default function AsignarVisita() {
       if (tSnap) setTiendas(tSnap);
       
       const { data: uSnap } = await supabase.from('users').select('*');
-      if (uSnap) setTecnicos(uSnap.filter((u:any) => u.rol === 'tecnico'));
+      if (uSnap) setTecnicos(uSnap.filter((u:any) => u.rol === 'tecnico' || u.rol === 'administrador'));
 
       const { data: cSnap } = await supabase.from('preguntas_componentes').select('*');
       if (cSnap) setComponentesList(cSnap);
@@ -60,7 +60,7 @@ export default function AsignarVisita() {
     }
   }, [userData]);
 
-  const tiendasFiltradas = formData.pais ? tiendas.filter(t => t.pais_tienda === formData.pais) : [];
+  const tiendasFiltradas = formData.pais ? tiendas.filter(t => t.pais_tienda === formData.pais && (formData.tipo === 'Oficina' ? t.tipo === 'Oficina' : t.tipo !== 'Oficina')) : [];
   const tecnicosFiltrados = formData.pais ? tecnicos.filter(u => u.pais === formData.pais) : tecnicos;
 
   const getMinDate = () => {
@@ -150,19 +150,19 @@ export default function AsignarVisita() {
                <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Visita</label>
                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <label className={`flex flex-col items-center justify-center p-4 border-2 rounded-xl cursor-pointer transition-all ${formData.tipo === 'Programada' ? 'border-brand-dark bg-brand-gray text-brand-dark' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-                    <input type="radio" name="tipo" value="Programada" checked={formData.tipo === 'Programada'} onChange={(e)=>setFormData({...formData, tipo: e.target.value})} className="sr-only"/>
+                    <input type="radio" name="tipo" value="Programada" checked={formData.tipo === 'Programada'} onChange={(e)=>setFormData({...formData, tipo: e.target.value, id_tienda: ''})} className="sr-only"/>
                     <Calendar className="w-8 h-8 mb-2" />
                     <span className="font-semibold text-center text-sm">Mantenimiento Programado</span>
                   </label>
                   <label className={`flex flex-col items-center justify-center p-4 border-2 rounded-xl cursor-pointer transition-all ${formData.tipo === 'Falla' ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-                    <input type="radio" name="tipo" value="Falla" checked={formData.tipo === 'Falla'} onChange={(e)=>setFormData({...formData, tipo: e.target.value})} className="sr-only"/>
+                    <input type="radio" name="tipo" value="Falla" checked={formData.tipo === 'Falla'} onChange={(e)=>setFormData({...formData, tipo: e.target.value, id_tienda: ''})} className="sr-only"/>
                     <AlertTriangle className="w-8 h-8 mb-2" />
                     <span className="font-semibold text-center text-sm">Atención de Falla</span>
                   </label>
-                  <label className={`flex flex-col items-center justify-center p-4 border-2 rounded-xl cursor-pointer transition-all ${formData.tipo === 'Rutina' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-                    <input type="radio" name="tipo" value="Rutina" checked={formData.tipo === 'Rutina'} onChange={(e)=>setFormData({...formData, tipo: e.target.value})} className="sr-only"/>
+                  <label className={`flex flex-col items-center justify-center p-4 border-2 rounded-xl cursor-pointer transition-all ${formData.tipo === 'Oficina' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                    <input type="radio" name="tipo" value="Oficina" checked={formData.tipo === 'Oficina'} onChange={(e)=>setFormData({...formData, tipo: e.target.value, id_tienda: ''})} className="sr-only"/>
                     <Building className="w-8 h-8 mb-2" />
-                    <span className="font-semibold text-center text-sm">Oficina / Rutina</span>
+                    <span className="font-semibold text-center text-sm">Oficina</span>
                   </label>
                </div>
             </div>
@@ -189,11 +189,13 @@ export default function AsignarVisita() {
                     <CheckSquare className="w-5 h-5 text-brand-dark" />
                     <h3 className="font-bold text-gray-800 text-lg">Componentes a Revisar</h3>
                 </div>
-                {categoriasList.length === 0 ? (
-                    <p className="text-sm text-gray-500">No hay categorías ni componentes configurados en el sistema.</p>
+                {categoriasList.filter(cat => (cat.tipo || 'Tienda') === (formData.tipo === 'Oficina' ? 'Oficina' : 'Tienda')).length === 0 ? (
+                    <p className="text-sm text-gray-500">No hay categorías ni componentes configurados para este tipo de visita.</p>
                 ) : (
                     <div className="space-y-3">
-                        {categoriasList.map(cat => {
+                        {categoriasList
+                            .filter(cat => (cat.tipo || 'Tienda') === (formData.tipo === 'Oficina' ? 'Oficina' : 'Tienda'))
+                            .map(cat => {
                             const catComponents = componentesList.filter(c => c.categoria_id === cat.id);
                             if (catComponents.length === 0) return null;
                             const isExpanded = expandedCatAsignar.includes(cat.id);
@@ -254,33 +256,36 @@ export default function AsignarVisita() {
             </div>
 
             <div className="col-span-1 md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tienda a Visitar</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{formData.tipo === 'Oficina' ? 'Oficina a Visitar' : 'Tienda a Visitar'}</label>
               <CustomSelect 
                 value={formData.id_tienda} 
                 onChange={(val: string) => setFormData({...formData, id_tienda: val})} 
                 disabled={!formData.pais}
-                options={[
-                  { value: '', label: formData.pais ? 'Selecciona una tienda...' : 'Primero selecciona un país' },
-                  ...tiendasFiltradas.map(t => ({ value: t.id, label: `${t.id_tienda} - ${t.tienda} (${t.ciudad_tienda})` }))
-                ]}
+                placeholder={formData.pais ? (formData.tipo === 'Oficina' ? 'Selecciona una oficina...' : 'Selecciona una tienda...') : 'Primero selecciona un país'}
+                options={tiendasFiltradas.map(t => ({ value: t.id, label: `${t.id_tienda} - ${t.tienda} (${t.ciudad_tienda})` }))}
                 className="w-full border-gray-300 border p-2.5 rounded-xl bg-white focus:ring-brand-dark focus:border-brand-dark disabled:bg-gray-100 disabled:text-gray-400"
                 required
+                searchable={true}
               />
             </div>
 
             <div className="col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Técnico Asignado <span className="text-gray-400 font-normal">(opcional)</span>
+                Técnico Asignado
               </label>
               <CustomSelect 
                 value={formData.tecnico_uid} 
                 onChange={(val: string) => setFormData({...formData, tecnico_uid: val})} 
                 disabled={!formData.pais}
                 options={[
-                  { value: '', label: formData.pais ? '— Sin asignar (pool) —' : 'Primero selecciona país' },
-                  ...tecnicosFiltrados.map(t => ({ value: t.id, label: t.nombre || t.email }))
+                  ...tecnicosFiltrados.map(t => ({ 
+                    value: t.id, 
+                    label: t.nombre || t.email,
+                    subLabel: t.rol === 'administrador' ? 'ADM' : 'TEC'
+                  }))
                 ]}
                 className="w-full border-gray-300 border p-2.5 rounded-xl bg-white focus:ring-brand-dark focus:border-brand-dark disabled:bg-gray-100 disabled:text-gray-400"
+                required
               />
             </div>
 

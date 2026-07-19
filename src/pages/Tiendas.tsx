@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Edit2, Trash2, MapPin, Search, Package, Download, Upload, XCircle, Filter, FileText } from 'lucide-react';
+import { Plus, Edit2, Trash2, MapPin, Search, Package, Download, Upload, XCircle, Filter, FileText, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { CustomSelect } from '../components/CustomSelect';
 import { usePaisesTiendas } from '../hooks/usePaisesTiendas';
@@ -22,13 +22,14 @@ export default function Tiendas() {
   
   const [formData, setFormData] = useState({
     id_tienda: '', tienda: '', provincia_tienda: '', ciudad_tienda: '', municipio_tienda: '', domicilio_tienda: '', pais_tienda: userData?.pais || '', telefono_tienda: '', correo_tienda: '', estatus: 'Tienda Activa',
-    coord_lat: '', coord_lng: ''
+    coord_lat: '', coord_lng: '', tipo: 'Tienda'
   });
   
   // Filtering States
   const [globalSearch, setGlobalSearch] = useState('');
   const [filterCountry, setFilterCountry] = useState(userData?.pais || '');
   const [filterCity, setFilterCity] = useState('');
+  const [filterTipo, setFilterTipo] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // Import Mass CSV States
@@ -64,7 +65,6 @@ export default function Tiendas() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (role === 'tecnico') return;
     try {
       const data = buildTiendaData();
       if (editingTienda) {
@@ -79,7 +79,7 @@ export default function Tiendas() {
   };
 
   const handleDelete = async (id: string) => {
-    if (role === 'tecnico' || !(await showConfirm("¿Eliminar tienda?"))) return;
+    if (!(await showConfirm("¿Eliminar tienda?"))) return;
     try {
       await supabase.from('tiendas').delete().eq('id', id);
       fetchTiendas();
@@ -105,24 +105,27 @@ export default function Tiendas() {
     );
     const matchesCountry = !filterCountry || t.pais_tienda === filterCountry;
     const matchesCity = !filterCity || t.ciudad_tienda === filterCity;
+    const matchesTipo = !filterTipo || t.tipo === filterTipo;
     
-    return matchesSearch && matchesCountry && matchesCity;
+    return matchesSearch && matchesCountry && matchesCity && matchesTipo;
   });
 
   const clearFilters = () => {
     setGlobalSearch('');
     setFilterCountry('');
     setFilterCity('');
+    setFilterTipo('');
   };
 
   const downloadCSV = () => {
-    const headers = ["ID Tienda", "Tienda", "Provincia", "Ciudad", "Municipio", "Domicilio", "País", "Coordenadas", "Teléfono", "Correo", "Estatus"];
+    const headers = ["ID Tienda", "Tipo", "Tienda", "Provincia", "Ciudad", "Municipio", "Domicilio", "País", "Coordenadas", "Teléfono", "Correo", "Estatus"];
     const csvRows = [headers.join(",")];
 
     filteredTiendas.forEach(t => {
         const coords = t.coordenadas_tienda ? `${t.coordenadas_tienda.lat},${t.coordenadas_tienda.lng}` : '';
         const row = [
             `"${t.id_tienda || ''}"`,
+            `"${t.tipo || 'Tienda'}"`,
             `"${t.tienda || ''}"`,
             `"${t.provincia_tienda || ''}"`,
             `"${t.ciudad_tienda || ''}"`,
@@ -172,19 +175,24 @@ export default function Tiendas() {
            if(cols.length >= 7) {
              const idNum = parseInt(cols[0], 10);
              if(isNaN(idNum)) continue;
+
+             const hasTipo = cols[1] === 'Tienda' || cols[1] === 'Oficina';
+             const offset = hasTipo ? 1 : 0;
+
              const tiendaData: any = {
                  id_tienda: idNum,
-                 tienda: cols[1] || '',
-                 provincia_tienda: cols[2] || '',
-                 ciudad_tienda: cols[3] || '',
-                 municipio_tienda: cols[4] || '',
-                 domicilio_tienda: cols[5] || '',
-                 pais_tienda: cols[6] || '',
-                 telefono_tienda: cols[8] || '',
-                 correo_tienda: cols[9] || '',
-                 estatus: 'Tienda Activa',
+                 tipo: hasTipo ? cols[1] : 'Tienda',
+                 tienda: cols[1 + offset] || '',
+                 provincia_tienda: cols[2 + offset] || '',
+                 ciudad_tienda: cols[3 + offset] || '',
+                 municipio_tienda: cols[4 + offset] || '',
+                 domicilio_tienda: cols[5 + offset] || '',
+                 pais_tienda: cols[6 + offset] || '',
+                 telefono_tienda: cols[8 + offset] || '',
+                 correo_tienda: cols[9 + offset] || '',
+                 estatus: cols[10 + offset] || 'Tienda Activa',
              };
-             const coordsRaw = cols[7] || '';
+             const coordsRaw = cols[7 + offset] || '';
              const parts = coordsRaw.split(/[;,]/).map(p => parseFloat(p.trim()));
              if (parts.length === 2 && parts.every(n => !isNaN(n))) {
                tiendaData.coordenadas_tienda = { lat: parts[0], lng: parts[1] };
@@ -227,7 +235,6 @@ export default function Tiendas() {
         <h2 className="text-2xl font-bold text-gray-800">Directorio de Tiendas</h2>
         
         <div className="flex space-x-2 w-full sm:w-auto">
-          {role !== 'tecnico' && (
              <button
                onClick={() => setShowImportModal(true)}
                className="flex items-center px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 hover:text-brand-dark transition-colors whitespace-nowrap text-sm font-semibold shadow-sm"
@@ -235,9 +242,8 @@ export default function Tiendas() {
              >
                <Upload className="w-5 h-5 md:mr-2" /> <span className="hidden md:inline">Importar CSV</span>
              </button>
-          )}
 
-          {role !== 'tecnico' && tiendas.length > 0 && (
+          {tiendas.length > 0 && (
              <button
                onClick={downloadCSV}
                className="flex items-center px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 hover:text-brand-dark transition-colors whitespace-nowrap text-sm font-semibold shadow-sm"
@@ -260,19 +266,17 @@ export default function Tiendas() {
 
           <button 
              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-             className={`flex items-center px-4 py-2 border rounded-xl transition-colors whitespace-nowrap text-sm font-semibold shadow-sm ${showAdvancedFilters || filterCountry || filterCity ? 'bg-brand-gray border-brand-dark text-brand-dark' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+             className={`flex items-center px-4 py-2 border rounded-xl transition-colors whitespace-nowrap text-sm font-semibold shadow-sm ${showAdvancedFilters || filterCountry || filterCity || filterTipo ? 'bg-brand-gray border-brand-dark text-brand-dark' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}
           >
              <Filter className="w-5 h-5 md:mr-2" /> <span className="hidden md:inline">Filtros</span>
           </button>
 
-          {role !== 'tecnico' && (
             <button 
-              onClick={() => { setEditingTienda(null); setFormData({id_tienda: '', tienda: '', provincia_tienda: '', ciudad_tienda: '', municipio_tienda: '', domicilio_tienda: '', pais_tienda: '', telefono_tienda: '', correo_tienda: '', estatus: 'Tienda Activa', coord_lat: '', coord_lng: ''}); setIsModalOpen(true); }}
+              onClick={() => { setEditingTienda(null); setFormData({id_tienda: '', tienda: '', provincia_tienda: '', ciudad_tienda: '', municipio_tienda: '', domicilio_tienda: '', pais_tienda: '', telefono_tienda: '', correo_tienda: '', estatus: 'Tienda Activa', coord_lat: '', coord_lng: '', tipo: 'Tienda'}); setIsModalOpen(true); }}
               className="flex items-center px-4 py-2 bg-brand-dark text-white rounded-xl hover:bg-brand-hover transition-colors whitespace-nowrap text-sm font-semibold shadow-sm"
             >
               <Plus className="w-5 h-5 md:mr-2" /> <span className="hidden md:inline">Nueva</span>
             </button>
-          )}
         </div>
       </div>
 
@@ -291,7 +295,7 @@ export default function Tiendas() {
                   className="w-full text-sm border-gray-300 border p-2 rounded-lg focus:ring-brand-dark focus:border-brand-dark bg-gray-50"
               />
            </div>
-           <div className="w-full md:w-1/3">
+           <div className="w-full md:w-1/4">
               <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">Filtrar por Ciudad</label>
               <CustomSelect 
                   value={filterCity} 
@@ -304,8 +308,21 @@ export default function Tiendas() {
                   className="w-full text-sm border-gray-300 border p-2 rounded-lg focus:ring-brand-dark focus:border-brand-dark disabled:bg-gray-100 disabled:opacity-50 bg-gray-50"
               />
            </div>
+           <div className="w-full md:w-1/4">
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">Tipo</label>
+              <CustomSelect 
+                  value={filterTipo} 
+                  onChange={(val: string) => setFilterTipo(val)} 
+                  options={[
+                      { value: '', label: 'Cualquier Tipo' },
+                      { value: 'Tienda', label: 'Tienda' },
+                      { value: 'Oficina', label: 'Oficina' }
+                  ]}
+                  className="w-full text-sm border-gray-300 border p-2 rounded-lg focus:ring-brand-dark focus:border-brand-dark bg-gray-50"
+              />
+           </div>
            <div className="w-full md:w-auto">
-              <button onClick={clearFilters} disabled={!globalSearch && !filterCountry && !filterCity} className="w-full md:w-auto px-4 py-2 text-sm text-gray-500 hover:text-gray-800 disabled:opacity-30 disabled:cursor-not-allowed font-medium">
+              <button onClick={clearFilters} disabled={!globalSearch && !filterCountry && !filterCity && !filterTipo} className="w-full md:w-auto px-4 py-2 text-sm text-gray-500 hover:text-gray-800 disabled:opacity-30 disabled:cursor-not-allowed font-medium">
                   Limpiar Filtros
               </button>
            </div>
@@ -321,6 +338,7 @@ export default function Tiendas() {
                 <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
                     <th className="p-4 text-sm font-semibold text-gray-600">ID Tienda</th>
+                    <th className="p-4 text-sm font-semibold text-gray-600">Tipo</th>
                     <th className="p-4 text-sm font-semibold text-gray-600">País</th>
                     <th className="p-4 text-sm font-semibold text-gray-600">Nombre de Tienda</th>
                     <th className="p-4 text-sm font-semibold text-gray-600">Domicilio</th>
@@ -332,10 +350,16 @@ export default function Tiendas() {
                 </thead>
                 <tbody>
                     {filteredTiendas.map((tienda) => {
+                      const isMissingData = !tienda.domicilio_tienda || !tienda.ciudad_tienda || !tienda.provincia_tienda || !tienda.coordenadas_tienda?.lat || !tienda.coordenadas_tienda?.lng || !tienda.pais_tienda;
                       const tiendaDisplay = tienda.tienda || '—';
                       return (
                       <tr key={tienda.id} className="border-b border-gray-100 group hover:shadow-md transition-all">
                           <td className="p-4 font-mono text-sm group-hover:bg-brand-dark group-hover:text-white transition-colors">{tienda.id_tienda}</td>
+                          <td className="p-4 group-hover:bg-brand-dark transition-colors">
+                            <span className={`inline-block px-2 py-1 rounded text-xs font-semibold transition-colors ${tienda.tipo === 'Oficina' ? 'bg-blue-100 text-blue-800 group-hover:bg-blue-500 group-hover:text-white' : 'bg-gray-100 text-gray-800 group-hover:bg-white group-hover:text-gray-800'}`}>
+                              {tienda.tipo || 'Tienda'}
+                            </span>
+                          </td>
                           <td className="p-4 group-hover:bg-brand-dark transition-colors">
                             <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-gray text-brand-dark group-hover:bg-white group-hover:text-brand-dark border border-brand-dark/15 transition-colors">
                               {tienda.pais_tienda || userData?.pais || '—'}
@@ -358,43 +382,57 @@ export default function Tiendas() {
                             {tienda.municipio_tienda && <div className="text-xs text-gray-400 group-hover:text-gray-300 mt-0.5 transition-colors">{tienda.municipio_tienda}</div>}
                           </td>
                           <td className="p-4 group-hover:bg-brand-dark transition-colors">
-                              <span className={`px-2 py-1 inline-block text-[10px] sm:text-xs font-semibold rounded-full uppercase tracking-wider transition-colors ${
-                                  tienda.estatus === 'Tienda Activa' ? 'bg-green-100 text-green-800 group-hover:bg-green-500 group-hover:text-white' :
-                                  tienda.estatus === 'Tienda Existente' ? 'bg-blue-100 text-blue-800 group-hover:bg-blue-500 group-hover:text-white' :
-                                  tienda.estatus === 'Tienda No Existe' ? 'bg-red-100 text-red-800 group-hover:bg-red-500 group-hover:text-white' : 'bg-gray-100 text-gray-800 group-hover:bg-white group-hover:text-gray-800'
-                              }`}>
-                                  {tienda.estatus || 'Sin estatus'}
-                              </span>
+                            <div className="flex items-center gap-2">
+                                <span className={`px-2 py-1 inline-block text-[10px] sm:text-xs font-semibold rounded-full uppercase tracking-wider transition-colors ${
+                                    tienda.estatus === 'Tienda Activa' ? 'bg-green-100 text-green-800 group-hover:bg-green-500 group-hover:text-white' :
+                                    tienda.estatus === 'Tienda Existente' ? 'bg-blue-100 text-blue-800 group-hover:bg-blue-500 group-hover:text-white' :
+                                    tienda.estatus === 'Tienda No Existe' ? 'bg-red-100 text-red-800 group-hover:bg-red-500 group-hover:text-white' : 'bg-gray-100 text-gray-800 group-hover:bg-white group-hover:text-gray-800'
+                                }`}>
+                                    {tienda.estatus || 'Sin estatus'}
+                                </span>
+                                {isMissingData && (
+                                  <div title="Faltan datos por completar en esta ubicación" className="text-yellow-500 group-hover:text-yellow-300 cursor-help">
+                                    <AlertTriangle className="w-4 h-4" />
+                                  </div>
+                                )}
+                            </div>
                           </td>
                           <td className="p-4 text-center space-x-1 sticky right-0 bg-white group-hover:bg-brand-dark z-10 border-l border-gray-100 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)] transition-colors">
                             <button onClick={() => navigate(`/tiendas/${tienda.id}/inventario`)} className="p-2 text-indigo-600 hover:bg-white/20 group-hover:text-white rounded-lg inline-flex transition-colors" title="Ver Inventario Físico">
                               <Package className="w-5 h-5" />
                             </button>
-                            {role !== 'tecnico' && (
-                              <>
-                                  <button onClick={() => { 
-                                      setEditingTienda(tienda); 
-                                      setFormData({
-                                          ...tienda, 
-                                          estatus: tienda.estatus || 'Tienda Activa',
-                                          coord_lat: tienda.coordenadas_tienda?.lat?.toString() || '', 
-                                          coord_lng: tienda.coordenadas_tienda?.lng?.toString() || ''
-                                      }); 
-                                      setIsModalOpen(true); 
-                                  }} className="p-2 text-gray-500 hover:bg-white/20 group-hover:text-white rounded-lg inline-flex transition-colors" title="Editar">
-                                      <Edit2 className="w-5 h-5" />
-                                  </button>
-                                  <button onClick={() => handleDelete(tienda.id)} className="p-2 text-gray-500 hover:bg-red-500 hover:text-white group-hover:text-red-200 rounded-lg inline-flex transition-colors" title="Eliminar">
-                                      <Trash2 className="w-5 h-5" />
-                                  </button>
-                              </>
-                            )}
+                            <button onClick={() => { 
+                                setEditingTienda(tienda); 
+                                setFormData({
+                                    ...tienda, 
+                                    tipo: tienda.tipo || 'Tienda',
+                                    estatus: tienda.estatus || 'Tienda Activa',
+                                    coord_lat: tienda.coordenadas_tienda?.lat?.toString() || '', 
+                                    coord_lng: tienda.coordenadas_tienda?.lng?.toString() || ''
+                                }); 
+                                setIsModalOpen(true); 
+                            }} className="p-2 text-gray-500 hover:bg-white/20 group-hover:text-white rounded-lg inline-flex transition-colors" title="Editar">
+                                <Edit2 className="w-5 h-5" />
+                            </button>
+                            <button onClick={() => handleDelete(tienda.id)} className="p-2 text-gray-500 hover:bg-red-500 hover:text-white group-hover:text-red-200 rounded-lg inline-flex transition-colors" title="Eliminar">
+                                <Trash2 className="w-5 h-5" />
+                            </button>
                           </td>
                       </tr>
                       );
                     })}
                     {filteredTiendas.length === 0 && (
-                        <tr><td colSpan={8} className="p-8 text-center text-gray-500">No se encontraron tiendas que coincidan con la búsqueda.</td></tr>
+                        <tr>
+                            <td colSpan={9} className="p-12">
+                                <div className="flex flex-col items-center justify-center text-center">
+                                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 border border-gray-100 shadow-sm">
+                                        <Search className="w-8 h-8 text-gray-300" />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-gray-800 mb-1">No se encontraron resultados</h3>
+                                    <p className="text-sm text-gray-500 max-w-sm">No encontramos registros que coincidan con la búsqueda actual. Intenta con otros términos o limpia los filtros.</p>
+                                </div>
+                            </td>
+                        </tr>
                     )}
                 </tbody>
                 </table>
@@ -409,7 +447,23 @@ export default function Tiendas() {
                 <h3 className="text-xl font-bold mb-4">{editingTienda ? 'Editar Tienda' : 'Nueva Tienda'}</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <div><label className="block text-sm font-medium mb-1">ID Tienda</label><input type="number" required value={formData.id_tienda} onChange={e=>setFormData({...formData, id_tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
+                      <div>
+                          <label className="block text-sm font-medium mb-1">Tipo</label>
+                          <CustomSelect 
+                              value={formData.tipo} 
+                              onChange={(val: string) => setFormData({...formData, tipo: val})} 
+                              options={[
+                                  { value: 'Tienda', label: 'Tienda' },
+                                  { value: 'Oficina', label: 'Oficina' }
+                              ]}
+                              className="w-full border p-2 rounded-lg bg-white"
+                              required
+                          />
+                      </div>
+                      <div><label className="block text-sm font-medium mb-1">ID Tienda/Oficina</label><input type="number" required value={formData.id_tienda} onChange={e=>setFormData({...formData, id_tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><label className="block text-sm font-medium mb-1">Nombre Tienda/Oficina</label><input value={formData.tienda} onChange={e=>setFormData({...formData, tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
                       <div>
                           <label className="block text-sm font-medium mb-1">País</label>
                           <CustomSelect 
@@ -424,8 +478,6 @@ export default function Tiendas() {
                           />
                       </div>
                     </div>
-                    <div><label className="block text-sm font-medium mb-1">Nombre Tienda</label><input value={formData.tienda} onChange={e=>setFormData({...formData, tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
-                    
                     <div className="grid grid-cols-2 gap-4">
                         <div><label className="block text-sm font-medium mb-1">Provincia</label><input value={formData.provincia_tienda} onChange={e=>setFormData({...formData, provincia_tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
                         <div><label className="block text-sm font-medium mb-1">Ciudad</label><input value={formData.ciudad_tienda} onChange={e=>setFormData({...formData, ciudad_tienda: e.target.value})} className="w-full border p-2 rounded-lg" /></div>
