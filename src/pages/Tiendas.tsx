@@ -350,11 +350,26 @@ export default function Tiendas() {
                 </thead>
                 <tbody>
                     {filteredTiendas.map((tienda) => {
-                      const isMissingData = !tienda.domicilio_tienda || !tienda.ciudad_tienda || !tienda.provincia_tienda || !tienda.coordenadas_tienda?.lat || !tienda.coordenadas_tienda?.lng || !tienda.pais_tienda;
+                      const missingFields = [];
+                      if (!tienda.domicilio_tienda) missingFields.push('Domicilio');
+                      if (!tienda.ciudad_tienda) missingFields.push('Ciudad');
+                      if (!tienda.provincia_tienda) missingFields.push('Provincia');
+                      if (!tienda.pais_tienda) missingFields.push('País');
+                      if (!tienda.coordenadas_tienda?.lat || !tienda.coordenadas_tienda?.lng) missingFields.push('Coordenadas GPS');
+                      const isMissingData = missingFields.length > 0;
                       const tiendaDisplay = tienda.tienda || '—';
                       return (
                       <tr key={tienda.id} className="border-b border-gray-100 group hover:shadow-md transition-all">
-                          <td className="p-4 font-mono text-sm group-hover:bg-brand-dark group-hover:text-white transition-colors">{tienda.id_tienda}</td>
+                          <td className="p-4 font-mono text-sm group-hover:bg-brand-dark group-hover:text-white transition-colors">
+                              <div className="flex items-center gap-2">
+                                  {isMissingData && (
+                                      <div title={`Faltan datos por completar:\n• ${missingFields.join('\n• ')}`} className="text-yellow-500 group-hover:text-yellow-300 cursor-help flex-shrink-0">
+                                          <AlertTriangle className="w-4 h-4" />
+                                      </div>
+                                  )}
+                                  <span>{tienda.id_tienda}</span>
+                              </div>
+                          </td>
                           <td className="p-4 group-hover:bg-brand-dark transition-colors">
                             <span className={`inline-block px-2 py-1 rounded text-xs font-semibold transition-colors ${tienda.tipo === 'Oficina' ? 'bg-blue-100 text-blue-800 group-hover:bg-blue-500 group-hover:text-white' : 'bg-gray-100 text-gray-800 group-hover:bg-white group-hover:text-gray-800'}`}>
                               {tienda.tipo || 'Tienda'}
@@ -390,11 +405,6 @@ export default function Tiendas() {
                                 }`}>
                                     {tienda.estatus || 'Sin estatus'}
                                 </span>
-                                {isMissingData && (
-                                  <div title="Faltan datos por completar en esta ubicación" className="text-yellow-500 group-hover:text-yellow-300 cursor-help">
-                                    <AlertTriangle className="w-4 h-4" />
-                                  </div>
-                                )}
                             </div>
                           </td>
                           <td className="p-4 text-center space-x-1 sticky right-0 bg-white group-hover:bg-brand-dark z-10 border-l border-gray-100 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)] transition-colors">
