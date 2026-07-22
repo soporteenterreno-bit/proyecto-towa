@@ -68,10 +68,8 @@ export default function AsignarVisita() {
 
   const getMinDate = () => {
     const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
+    today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+    return today.toISOString().slice(0, 16);
   };
 
   const toggleComponente = (compId: string) => {
@@ -325,8 +323,8 @@ export default function AsignarVisita() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Programada</label>
-              <input min={getMinDate()} required type="date" value={formData.fecha_programada} onChange={e=>setFormData({...formData, fecha_programada: e.target.value})} className="w-full border-gray-300 border p-2.5 rounded-xl bg-white focus:ring-brand-dark focus:border-brand-dark" />
+              <label className="block text-sm font-medium text-gray-700 mb-2">Fecha y Hora Programada *</label>
+              <input min={getMinDate()} required type="datetime-local" value={formData.fecha_programada} onChange={e=>setFormData({...formData, fecha_programada: e.target.value})} className="w-full border-gray-300 border p-2.5 rounded-xl bg-white focus:ring-brand-dark focus:border-brand-dark" />
             </div>
 
             <div className="col-span-1 md:col-span-2">

@@ -70,8 +70,7 @@ export default function FormularioVisita() {
     const [loading, setLoading] = useState(true);
 
     const [items, setItems] = useState<ActivityState[]>([]);
-    const [checklistPreguntas, setChecklistPreguntas] = useState<any[]>([]);
-    const [checklistRespuestas, setChecklistRespuestas] = useState<Record<string, boolean | null>>({});
+
     const [notas, setNotas] = useState('');
     const [saving, setSaving] = useState(false);
     const [downloading, setDownloading] = useState(false);
@@ -129,22 +128,7 @@ export default function FormularioVisita() {
 
                 setVisita(vData);
 
-                // Init State
-                const { data: pregData } = await supabase.from('checklist_preguntas').select('*').eq('activo', true).order('orden');
-                if (pregData) {
-                    const formType = vData.tipo;
-                    const validQs = pregData.filter(p => p.formularios.includes(formType));
-                    setChecklistPreguntas(validQs);
-                    if (vData.checklist_respuestas && vData.checklist_respuestas.length > 0) {
-                        const respMap: any = {};
-                        vData.checklist_respuestas.forEach((r: any) => respMap[r.id] = r.respuesta);
-                        setChecklistRespuestas(respMap);
-                    } else {
-                        const initMap: any = {};
-                        validQs.forEach(q => initMap[q.id] = null);
-                        setChecklistRespuestas(initMap);
-                    }
-                }
+
 
                 if (vData.actividades_ejecutadas && vData.actividades_ejecutadas.length > 0) {
                     setItems(vData.actividades_ejecutadas);
@@ -219,20 +203,15 @@ export default function FormularioVisita() {
         );
     }, [visita?.id, user, visita?.tienda, visita?.tecnico_uid, visita?.status]);
 
-    const getArrRespuestas = () => {
-        return checklistPreguntas.map(q => ({
-            id: q.id,
-            pregunta: q.pregunta,
-            respuesta: checklistRespuestas[q.id]
-        }));
-    };
-
     // Derived state for scoring
     const calculateScores = () => {
-        let totalPts = checklistPreguntas.length;
+        let totalPts = 0;
         let earnedPts = 0;
-        checklistPreguntas.forEach(q => {
-            if (checklistRespuestas[q.id] === true) earnedPts++;
+        items.forEach(item => {
+            item.subActivities.forEach(sub => {
+                totalPts += sub.points || 0;
+                if (sub.isCompleted === true) earnedPts += sub.points || 0;
+            });
         });
         const totalPercentage = totalPts > 0 ? Math.round((earnedPts / totalPts) * 100) : 0;
         return { totalPercentage, totalPts, earnedPts };
@@ -249,13 +228,12 @@ export default function FormularioVisita() {
                 supabase.from('visitas').update({
                     ponderacion_final: currPonderacion,
                     actividades_ejecutadas: items,
-                    notas_adicionales: notas,
-                    checklist_respuestas: getArrRespuestas()
+                    notas_adicionales: notas
                 }).eq('id', visita.id).then(({ error }) => { if (error) console.warn("Background auto-save failed", error); });
             }
         }, 2500);
         return () => clearTimeout(timeoutId);
-    }, [items, notas, currPonderacion, visita, checklistRespuestas]);
+    }, [items, notas, currPonderacion, visita]);
 
 
     const compressImage = (file: File): Promise<string> => {
@@ -516,7 +494,7 @@ export default function FormularioVisita() {
 
             currentY += 6;
             pdf.text(`Ubicación: ${visita.tienda?.ciudad_tienda}, ${visita.tienda?.pais_tienda}`, 15, currentY);
-            pdf.text(`Jefe Inmediato: ${visita.tecnicoInfo?.jefeInfo?.nombre || visita.tecnicoInfo?.jefe_inmediato || 'No asignado'}`, 110, currentY);
+            pdf.text(`Jefe Inmediato: ${visita.tecnicoInfo?.jefeInfo?.nombre || visita.tecnicoInfo?.jefeInfo?.email || 'No asignado'}`, 110, currentY);
 
             currentY += 6;
             pdf.text(`Fecha Programada: ${format(parseSafeDate(visita.fecha_programada), "dd/MM/yyyy")}`, 15, currentY);
@@ -544,31 +522,7 @@ export default function FormularioVisita() {
 
             currentY += 12;
 
-            // Checklist Summary Table
-            if (checklistPreguntas.length > 0) {
-                pdf.setFont("helvetica", "bold");
-                pdf.setFontSize(11);
-                pdf.setTextColor(brandTheme[0], brandTheme[1], brandTheme[2]);
-                pdf.text("CHECKLIST GENERAL", 15, currentY);
-                currentY += 4;
 
-                const checklistData = checklistPreguntas.map(q => [
-                    q.pregunta,
-                    checklistRespuestas[q.id] === true ? 'SÍ' : (checklistRespuestas[q.id] === false ? 'NO' : '---')
-                ]);
-
-                autoTable(pdf, {
-                    startY: currentY,
-                    head: [['Pregunta', 'Respuesta']],
-                    body: checklistData,
-                    theme: 'grid',
-                    styles: { fontSize: 8, cellPadding: 2, halign: 'left' },
-                    columnStyles: { 1: { halign: 'center', fontStyle: 'bold' } },
-                    headStyles: { fillColor: [240, 240, 240], textColor: brandDark as [number, number, number] },
-                });
-
-                currentY = (pdf as any).lastAutoTable.finalY + 12;
-            }
 
             // Main Activities Table
             pdf.setFont("helvetica", "bold");
@@ -603,9 +557,9 @@ export default function FormularioVisita() {
                 headStyles: { fillColor: brandDark as [number, number, number], textColor: [255, 255, 255] },
                 columnStyles: {
                     0: { cellWidth: 35, fontStyle: 'bold' },
-                    1: { cellWidth: 70 },
+                    1: { cellWidth: 65 },
                     2: { cellWidth: 15, halign: 'center' },
-                    3: { cellWidth: 20 },
+                    3: { cellWidth: 25 },
                     4: { cellWidth: 45 },
                 },
                 rowPageBreak: 'avoid',
@@ -651,34 +605,48 @@ export default function FormularioVisita() {
                 currentY += 10;
 
                 for (const item of itemsWithImages) {
-                    if (currentY > 240) { pdf.addPage(); currentY = 20; }
+                    if (currentY > 260) { pdf.addPage(); currentY = 20; }
 
-                    pdf.setFontSize(11);
+                    pdf.setFillColor(240, 240, 240);
+                    pdf.rect(15, currentY, 180, 10, 'F');
+                    pdf.setFontSize(10);
                     pdf.setTextColor(brandDark[0], brandDark[1], brandDark[2]);
-                    pdf.text(`Componente: ${item.title}`, 15, currentY);
-                    currentY += 6;
+                    pdf.text(`Componente: ${item.title}`, 18, currentY + 7);
+                    
+                    pdf.setDrawColor(200, 200, 200);
+                    pdf.rect(15, currentY, 180, 10, 'S');
 
-                    let startX = 15;
-                    const imgWidth = 55;
-                    const imgHeight = 55;
-                    const rowHeight = imgHeight + 8;
+                    currentY += 10;
 
-                    for (let k = 0; k < item.images.length; k++) {
-                        if (startX + imgWidth > 200) {
-                            startX = 15;
-                            currentY += rowHeight;
-                            if (currentY > 230) {
-                                pdf.addPage();
-                                currentY = 20;
+                    const colWidth = 60;
+                    const rowHeight = 60;
+                    const imgDim = 50;
+
+                    let imgCount = 0;
+                    while (imgCount < item.images.length) {
+                        if (currentY + rowHeight > 275) {
+                            pdf.addPage();
+                            currentY = 20;
+                        }
+
+                        pdf.rect(15, currentY, colWidth, rowHeight, 'S');
+                        pdf.rect(15 + colWidth, currentY, colWidth, rowHeight, 'S');
+                        pdf.rect(15 + colWidth * 2, currentY, colWidth, rowHeight, 'S');
+
+                        for (let col = 0; col < 3; col++) {
+                            if (imgCount < item.images.length) {
+                                const imgSrc = item.images[imgCount];
+                                const x = 15 + col * colWidth + (colWidth - imgDim) / 2;
+                                const y = currentY + (rowHeight - imgDim) / 2;
+                                try {
+                                    pdf.addImage(imgSrc, 'JPEG', x, y, imgDim, imgDim);
+                                } catch (e) { console.warn("Img draw failed", e) }
+                                imgCount++;
                             }
                         }
-                        try {
-                            pdf.addImage(item.images[k], 'JPEG', startX, currentY, imgWidth, imgHeight);
-                        } catch (e) { console.warn("Img draw failed", e) }
-
-                        startX += imgWidth + 5;
+                        currentY += rowHeight;
                     }
-                    currentY += rowHeight + 8;
+                    currentY += 10; 
                 }
             }
 
@@ -848,7 +816,7 @@ export default function FormularioVisita() {
                                 <Briefcase className="w-4 h-4 text-brand-dark mr-3 shrink-0" />
                                 <div>
                                     <p className="text-sm text-gray-800 font-medium whitespace-nowrap">Área: {visita.tecnicoInfo?.area_trabajo || 'General'}</p>
-                                    <p className="text-[10px] sm:text-xs text-gray-500">Jefe Inmediato: {visita.tecnicoInfo?.jefeInfo?.nombre || visita.tecnicoInfo?.jefe_inmediato || 'No asignado'}</p>
+                                    <p className="text-[10px] sm:text-xs text-gray-500">Jefe Inmediato: {visita.tecnicoInfo?.jefeInfo?.nombre || visita.tecnicoInfo?.jefeInfo?.email || 'No asignado'}</p>
                                 </div>
                             </div>
                         </div>
@@ -896,38 +864,7 @@ export default function FormularioVisita() {
                         </div>
                     </div>
 
-                    {/* Checklist General */}
-                    {checklistPreguntas.length > 0 && (
-                        <div className="mb-8 bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-                            <div className="bg-brand-dark border-b border-brand-dark p-4 sm:p-5 flex items-center gap-3">
-                                <h3 className="text-lg font-bold text-white uppercase tracking-wide">Checklist General</h3>
-                            </div>
-                            <div className="p-4 sm:p-6 space-y-4">
-                                {checklistPreguntas.map((q, idx) => (
-                                    <div key={q.id} className="p-4 rounded-xl border border-gray-100 bg-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                        <div className="flex items-start flex-1">
-                                            <div className="bg-gray-200 text-gray-600 text-xs font-bold px-2 py-0.5 rounded mr-3 mt-0.5">{idx + 1}</div>
-                                            <p className="text-sm font-medium text-gray-800">{q.pregunta}</p>
-                                        </div>
-                                        <div className="flex gap-2 shrink-0">
-                                            <button
-                                                onClick={() => setChecklistRespuestas(prev => ({ ...prev, [q.id]: true }))}
-                                                className={`flex-1 md:flex-none flex items-center justify-center px-4 py-2 rounded-lg font-bold text-sm transition-all border ${checklistRespuestas[q.id] === true ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                                            >
-                                                <CheckCircle className="w-4 h-4 mr-1.5" /> SÍ
-                                            </button>
-                                            <button
-                                                onClick={() => setChecklistRespuestas(prev => ({ ...prev, [q.id]: false }))}
-                                                className={`flex-1 md:flex-none flex items-center justify-center px-4 py-2 rounded-lg font-bold text-sm transition-all border ${checklistRespuestas[q.id] === false ? 'bg-red-500 text-white border-red-500 shadow-sm' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                                            >
-                                                <XCircle className="w-4 h-4 mr-1.5" /> NO
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+
 
                     {/* Dynamic Form List */}
                     <div className="space-y-6 sm:space-y-8">
